@@ -73,18 +73,55 @@ triggers:
 
 ### Step 2：地理编码（地址 → 经纬度）
 
-**方案优先级：Web Search > 浏览器高德地图**
+**方案优先级：高德 Web 服务 API（首选）> Web Search > 浏览器高德地图**
 
-#### 方案 A：Web Search（首选，快速）
+#### 方案 A：高德 Web 服务 API（首选，一键直达）
+
+直接调高德 REST API 返回精确经纬度，**无需浏览器**（高德/百度/腾讯网页版均有滑块验证码，headless 基本不可用）。
+
+**前置条件**：环境变量 `AMAP_WEBSERVICE_KEY`（高德开放平台 Web 服务 Key）：
+
+```bash
+# 已配置于 ~/.hermes/.env（Hermes 全局 env，不在 GitHub 仓库内）
+# 后台 terminal 不继承环境变量，先 source：
+source ~/.hermes/.env 2>/dev/null
+# 或临时指定：export AMAP_WEBSERVICE_KEY=你的key
+```
+
+**地理编码**（地名 → 坐标）：
+
+```bash
+curl -s "https://restapi.amap.com/v3/geocode/geo?address={地址}&city={城市}&output=JSON&key=${AMAP_WEBSERVICE_KEY}"
+```
+
+返回 `geocodes[0].location`，格式 `经度,纬度`。
+
+**POI 搜索**（地理编码查不到的 POI，如已撤并的学校/村庄）：
+
+```bash
+curl -s "https://restapi.amap.com/v3/place/text?keywords={关键词}&city={城市}&output=JSON&key=${AMAP_WEBSERVICE_KEY}"
+```
+
+返回 `pois[0].location`，可能有多个候选，按 name/address 匹配判断。
+
+**解析规则：**
+- `status` = "1" 且 `count` > 0 → 提取 `geocodes[0].location` / `pois[0].location`
+- 多个候选 → 列出让用户选择
+- `status` ≠ "1" → key 无效或地址无效
+- 查不到 → 进入方案 B
+
+**实测案例**（2026-08）："浦江县石宅小学"（已并入杭坪镇中心小学），web_search/高德网页/腾讯/百度地图全部被验证码拦截，高德 API 一次返回 `119.816655,29.512240`。
+
+#### 方案 B：Web Search（兜底）
 
 用 web_search 搜索 `{地址名称} 经纬度` 或 `{地址名称} 坐标`。
 
 **解析规则：**
 - 搜索结果中明确包含 `地理坐标：`、`经纬度：`、`坐标：` 等关键词的 → 提取数字
 - 结果为高德/百度地图链接且描述中含坐标 → 提取坐标
-- 搜索结果模糊或不含坐标 → 进入方案 B
+- 搜索结果模糊或不含坐标 → 进入方案 C
 
-#### 方案 B：浏览器高德地图（备用）
+#### 方案 C：浏览器高德地图（最后兜底）
 
 ```bash
 browser_navigate("https://www.amap.com/")
@@ -92,9 +129,11 @@ browser_type 搜索框 → 输入地址
 browser_snapshot → 提取结果
 ```
 
-#### 方案 C：无法获取经纬度（异常处理）
+> ⚠️ 2026-08 实测：高德/百度/腾讯网页版均有滑块验证码，headless 浏览器基本不可用；此方案仅作最后手段。
 
-若方案 A 和 B 均无法获取经纬度，或搜索结果有多个候选位置无法确定唯一匹配：
+#### 方案 D：无法获取经纬度（异常处理）
+
+若方案 A/B/C 均无法获取经纬度，或搜索结果有多个候选位置无法确定唯一匹配：
 
 **必须向用户反馈，示例回复：**
 
@@ -221,8 +260,9 @@ curl -s "https://api.globalsolaratlas.info/data/lta?loc=纬度,经度"
 
 | 步骤 | 工具 |
 |------|------|
-| 地理编码 | `web_search` |
-| 地理编码（备用） | `browser_navigate`, `browser_type`, `browser_snapshot` |
+| 地理编码（首选） | `terminal` (curl 高德 REST API，key 取自 `$AMAP_WEBSERVICE_KEY`) |
+| 地理编码（兜底） | `web_search` |
+| 地理编码（最后兜底） | `browser_navigate`, `browser_type`, `browser_snapshot` |
 | 辐照度查询 | `terminal` (curl) |
 | 坐标系转换 | `terminal` (python3) |
 | 逐时数据解析 | `gsa_report_parser.py` (见下方) |
@@ -305,10 +345,8 @@ https://globalsolaratlas.info/map?s=纬度,经度,10&pv=类型,方位角,倾角,
 ### Step 4：解析 XLSX 报告
 
 ```bash
-python3 scripts/gsa_report_parser.py <file.xlsx> --format json
+python3 ~/.hermes/scripts/gsa_report_parser.py <file.xlsx> --format json
 ```
-
-> 脚本随 skill 一起分发，位于 `scripts/gsa_report_parser.py`（相对于 skill 根目录）。也可复制到全局脚本目录后使用绝对路径调用。
 
 返回结构包含：
 - `Overview` — 报告概览
@@ -433,13 +471,11 @@ python3 scripts/gsa_report_parser.py <file.xlsx> --format json
 
 ```bash
 # 默认：只生成 2×2 综合图 → <xlsx目录>/charts/09_combined_summary.png
-python3 scripts/gsa_plot_summary.py "<file.xlsx>"
+~/.hermes/hermes-agent/venv/bin/python3 ~/.hermes/skills/pv-storage-grid-policy/solar-irradiance-query/scripts/gsa_plot_summary.py "<file.xlsx>"
 
 # 全部 9 种科研绘图（01-09）
-python3 scripts/gsa_plot_summary.py "<file.xlsx>" --all
+~/.hermes/hermes-agent/venv/bin/python3 ~/.hermes/skills/pv-storage-grid-policy/solar-irradiance-query/scripts/gsa_plot_summary.py "<file.xlsx>" --all
 ```
-
-> 脚本随 skill 一起分发，位于 `scripts/gsa_plot_summary.py`。需要 Python 环境含 pandas/numpy/matplotlib。
 
 **9 种图清单：**
 
@@ -456,6 +492,7 @@ python3 scripts/gsa_plot_summary.py "<file.xlsx>" --all
 | 09_combined_summary.png | 2×2 综合汇总 | 一页看全 |
 
 **注意：**
+- 必须用 `~/.hermes/hermes-agent/venv/bin/python3` 运行（matplotlib 装在该 venv）
 - 输出默认到 `<xlsx同目录>/charts/`，用 `--out` 指定目录
 - 生成后用 `open_preview` 或 MEDIA: 路径展示给用户
 
