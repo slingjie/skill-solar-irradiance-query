@@ -64,12 +64,26 @@ cp -r solar-irradiance-query ./.codex/skills/           # Codex
 - **完整报告**：浏览器自动化下载 XLSX（含 PV 配置）
 - **数据版本**：Solargis v2.2.68
 
+## 地理编码（地址 → 经纬度）
+
+输入中文地址/地名时，skill 默认调用**高德 Web 服务 API**（`restapi.amap.com/v3/geocode/geo` 或 `/v3/place/text`）将地址解析为经纬度，再查询 GSA。高德网页版有滑块验证码，REST API 是首选方案；Web Search 与浏览器仅作兜底。
+
+需要设置环境变量 `AMAP_WEBSERVICE_KEY`（高德开放平台 Web 服务 Key，免费申请：https://lbs.amap.com/api/webservice/create-project-and-key）：
+
+```bash
+# 建议写入本机环境文件（如 ~/.hermes/.env），不要提交到仓库
+export AMAP_WEBSERVICE_KEY=你的key
+```
+
+> ⚠️ **安全**：key 只存本地环境变量，仓库内所有文件（含 README/SKILL.md/示例）均不含真实 key；`.gitignore` 已忽略 `.env`、`config.json` 等敏感文件。
+
 ## 依赖
 
 - Python 3.x
 - openpyxl（读取 XLSX）
 - pandas、numpy、matplotlib（matplotlib 综合图）
 - 支持浏览器自动化的 Agent 环境（下载 GSA 报告时）
+- `AMAP_WEBSERVICE_KEY` 环境变量（中文地址地理编码时）
 
 ## 文件结构
 
