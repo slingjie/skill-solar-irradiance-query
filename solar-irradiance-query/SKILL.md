@@ -427,6 +427,38 @@ python3 scripts/gsa_report_parser.py <file.xlsx> --format json
 ✓ 校验：Jan PVOUT 月累计 xxx Wh × 31天 = xx,xxx kWh ≈ 月度数据 xx,xxx kWh ✓
 ```
 
+**5.9 matplotlib 综合图（2×2 汇总，替代/补充 HTML 图）**
+
+用户要"汇总图/综合图/科研绘图/报告图"时，用 matplotlib 生成 2×2 综合图：
+
+```bash
+# 默认：只生成 2×2 综合图 → <xlsx目录>/charts/09_combined_summary.png
+python3 scripts/gsa_plot_summary.py "<file.xlsx>"
+
+# 全部 9 种科研绘图（01-09）
+python3 scripts/gsa_plot_summary.py "<file.xlsx>" --all
+```
+
+> 脚本随 skill 一起分发，位于 `scripts/gsa_plot_summary.py`。需要 Python 环境含 pandas/numpy/matplotlib。
+
+**9 种图清单：**
+
+| 文件 | 内容 | 用途 |
+|------|------|------|
+| 01_hourly_curves.png | 12条逐时曲线叠加 | 鸭舌帽图，日变化+季节对比 |
+| 02_hourly_heatmap.png | 24h×12月热力图 | 紧凑看双维变化 |
+| 03_monthly_bar_dni_line.png | 月度柱状+DNI双Y轴 | 可研报告经典图 |
+| 04_daily_horizontal_bar.png | 日均发电量横向条形 | 快速对比月份 |
+| 05_polar_rose.png | 极坐标玫瑰图 | 报告封面/视觉冲击 |
+| 06_irradiation_comparison.png | GHI/DNI/DIF/GTI对比 | 资源评估 |
+| 07_pvout_vs_dni_scatter.png | PVOUT-DNI散点+趋势线 | 相关性分析 |
+| 08_area_chart.png | 月度面积图 | 总量感 |
+| 09_combined_summary.png | 2×2 综合汇总 | 一页看全 |
+
+**注意：**
+- 输出默认到 `<xlsx同目录>/charts/`，用 `--out` 指定目录
+- 生成后用 `open_preview` 或 MEDIA: 路径展示给用户
+
 ## 图表代码框架
 
 ```python

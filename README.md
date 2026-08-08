@@ -1,6 +1,6 @@
 # solar-irradiance-query
 
-光伏辐照度查询 Skill（标准 Agent Skill 格式）— 通过地址名称或经纬度查询 Global Solar Atlas 辐照度数据，下载完整 PV 报告，生成月度发电量柱状图 + 逐时发电量曲线图。
+光伏辐照度查询 Skill（标准 Agent Skill 格式）— 通过地址名称或经纬度查询 Global Solar Atlas 辐照度数据，下载完整 PV 报告，生成月度发电量柱状图 + 逐时发电量曲线图 + 2×2 matplotlib 综合汇总图（共 9 种科研绘图）。
 
 > 标准 Agent Skill：YAML frontmatter + Markdown，兼容 Hermes、Claude Code、Codex 等主流 Agent。
 
@@ -68,6 +68,7 @@ cp -r solar-irradiance-query ./.codex/skills/           # Codex
 
 - Python 3.x
 - openpyxl（读取 XLSX）
+- pandas、numpy、matplotlib（matplotlib 综合图）
 - 支持浏览器自动化的 Agent 环境（下载 GSA 报告时）
 
 ## 文件结构
@@ -77,7 +78,8 @@ solar-irradiance-query/               # GitHub 仓库
 └── solar-irradiance-query/           # Skill 文件夹（复制到任意 Agent 的 skills 目录）
     ├── SKILL.md                      # 必须：技能说明（YAML frontmatter + Markdown）
     ├── scripts/                      # 可选：脚本文件
-    │   └── gsa_report_parser.py      #   XLSX 报告解析脚本
+    │   ├── gsa_report_parser.py      #   XLSX 报告解析脚本
+    │   └── gsa_plot_summary.py       #   matplotlib 综合绘图（2×2 汇总 / 全部 9 种）
     └── assets/                       # 可选：静态资源
         └── solar_charts_combined.html #  交互式图表示例
 ```
