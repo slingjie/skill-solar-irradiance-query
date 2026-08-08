@@ -1,6 +1,8 @@
 # solar-irradiance-query
 
-光伏辐照度查询 Skill for Hermes Agent — 通过地址名称或经纬度查询 Global Solar Atlas 辐照度数据，下载完整 PV 报告，生成月度发电量柱状图 + 逐时发电量曲线图。
+光伏辐照度查询 Skill（标准 Agent Skill 格式）— 通过地址名称或经纬度查询 Global Solar Atlas 辐照度数据，下载完整 PV 报告，生成月度发电量柱状图 + 逐时发电量曲线图。
+
+> 标准 Agent Skill：YAML frontmatter + Markdown，兼容 Hermes、Claude Code、Codex 等主流 Agent。
 
 ## 效果预览
 
@@ -10,17 +12,26 @@
 
 ## 安装
 
+### 方式一：直接复制 skill 文件夹（推荐）
+
 ```bash
-# 1. 克隆仓库
 git clone https://github.com/slingjie/solar-irradiance-query.git
 cd solar-irradiance-query
 
-# 2. 复制整个 skill 文件夹到 Hermes skills 目录
-cp -r solar-irradiance-query ~/.hermes/skills/
-
-# 3. 复制解析脚本到 Hermes 全局脚本目录（skill 运行时调用）
-cp solar-irradiance-query/scripts/gsa_report_parser.py ~/.hermes/scripts/
+# 复制整个 skill 文件夹（脚本、资源随 skill 一起分发）
+cp -r solar-irradiance-query ~/.hermes/skills/          # Hermes
+cp -r solar-irradiance-query ~/.claude/skills/          # Claude Code
+cp -r solar-irradiance-query ~/.codex/skills/           # Codex
 ```
+
+### 方式二：项目级安装（仅当前项目使用）
+
+```bash
+cp -r solar-irradiance-query ./.claude/skills/          # Claude Code
+cp -r solar-irradiance-query ./.codex/skills/           # Codex
+```
+
+> 脚本引用为相对路径 `scripts/gsa_report_parser.py`，无需额外复制到全局目录。
 
 ## 使用触发词
 
@@ -57,13 +68,13 @@ cp solar-irradiance-query/scripts/gsa_report_parser.py ~/.hermes/scripts/
 
 - Python 3.x
 - openpyxl（读取 XLSX）
-- Hermes Agent
+- 支持浏览器自动化的 Agent 环境（下载 GSA 报告时）
 
 ## 文件结构
 
 ```
 solar-irradiance-query/               # GitHub 仓库
-└── solar-irradiance-query/           # Skill 文件夹（复制到 ~/.hermes/skills/）
+└── solar-irradiance-query/           # Skill 文件夹（复制到任意 Agent 的 skills 目录）
     ├── SKILL.md                      # 必须：技能说明（YAML frontmatter + Markdown）
     ├── scripts/                      # 可选：脚本文件
     │   └── gsa_report_parser.py      #   XLSX 报告解析脚本

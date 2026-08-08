@@ -305,8 +305,10 @@ https://globalsolaratlas.info/map?s=纬度,经度,10&pv=类型,方位角,倾角,
 ### Step 4：解析 XLSX 报告
 
 ```bash
-python3 ~/.hermes/scripts/gsa_report_parser.py <file.xlsx> --format json
+python3 scripts/gsa_report_parser.py <file.xlsx> --format json
 ```
+
+> 脚本随 skill 一起分发，位于 `scripts/gsa_report_parser.py`（相对于 skill 根目录）。也可复制到全局脚本目录后使用绝对路径调用。
 
 返回结构包含：
 - `Overview` — 报告概览
