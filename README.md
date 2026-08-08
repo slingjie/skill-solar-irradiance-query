@@ -2,6 +2,10 @@
 
 光伏辐照度查询 Skill for Hermes Agent — 通过地址名称或经纬度查询 Global Solar Atlas 辐照度数据，下载完整 PV 报告，生成月度发电量柱状图 + 逐时发电量曲线图。
 
+## 效果预览
+
+![Chart Demo](chart_demo.png)
+
 ## 功能
 
 - 🌞 **基础辐照查询**：地址/经纬度 → GHI / DNI / DIF / GTI / PVOUT
@@ -43,14 +47,12 @@ cp gsa_report_parser.py ~/.hermes/scripts/
 
 **逐时发电量：**
 - "XX楼宇 出力曲线"
-- "31.23, 121.47 小时分布"
 - "XX项目 24小时发电分布"
 - "XX市 光伏 月度发电量柱状图"
 
 **组合查询：**
 - "XX园区 辐照度 逐时"
 - "XX厂房 完整报告"
-- "XX市 资源评估 发电量"
 
 ## 数据来源
 
@@ -70,5 +72,6 @@ cp gsa_report_parser.py ~/.hermes/scripts/
 solar-irradiance-query/
 ├── SKILL.md              # Skill 定义（触发条件、流程、输出标准）
 ├── gsa_report_parser.py  # XLSX 报告解析脚本
+├── chart_demo.png        # 效果预览图
 └── README.md
 ```
