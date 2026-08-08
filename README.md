@@ -10,6 +10,10 @@
 
 或直接下载 [solar-irradiance-query/assets/solar_charts_combined.html](solar-irradiance-query/assets/solar_charts_combined.html) 在浏览器中打开。
 
+**matplotlib 2×2 综合汇总图示例**（月度发电量柱状图 + 逐时曲线 + 热力图 + 资源对比，`gsa_plot_summary.py` 输出）：
+
+![2×2 综合汇总图](solar-irradiance-query/assets/09_combined_summary.png)
+
 ## 安装
 
 ### 方式一：直接复制 skill 文件夹（推荐）
