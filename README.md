@@ -4,7 +4,7 @@
 
 ## 效果预览
 
-[**点击查看交互图表预览 →**](https://raw.githack.com/slingjie/solar-irradiance-query/main/assets/solar_charts_combined.html)
+[**点击查看交互图表预览 →**](https://cdn.jsdelivr.net/gh/slingjie/solar-irradiance-query@main/assets/solar_charts_combined.html)
 
 或直接下载 [assets/solar_charts_combined.html](assets/solar_charts_combined.html) 在浏览器中打开。
 
