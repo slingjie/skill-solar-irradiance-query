@@ -4,31 +4,22 @@
 
 ## 效果预览
 
-[**点击查看交互图表预览 →**](https://cdn.jsdelivr.net/gh/slingjie/solar-irradiance-query@main/assets/solar_charts_combined.html)
+[**点击查看交互图表预览 →**](https://cdn.jsdelivr.net/gh/slingjie/solar-irradiance-query@main/solar-irradiance-query/assets/solar_charts_combined.html)
 
-或直接下载 [assets/solar_charts_combined.html](assets/solar_charts_combined.html) 在浏览器中打开。
-
-## 功能
-
-- 🌞 **基础辐照查询**：地址/经纬度 → GHI / DNI / DIF / GTI / PVOUT
-- 📊 **逐时发电量**：下载 GSA 完整 PV 报告，解析 12 个月 × 24 小时数据
-- 📈 **可视化图表**：
-  - 月度发电量柱状图 + 趋势线
-  - 逐时发电量曲线图（12 个月叠加）
-- 🖱 **交互功能**：
-  - 点击柱体高亮对应月份
-  - 图例点击显示/隐藏
-  - 滚轮缩放 X 轴
-  - 悬停显示具体数值
+或直接下载 [solar-irradiance-query/assets/solar_charts_combined.html](solar-irradiance-query/assets/solar_charts_combined.html) 在浏览器中打开。
 
 ## 安装
 
 ```bash
-# 复制 skill 到 Hermes
+# 1. 克隆仓库
+git clone https://github.com/slingjie/solar-irradiance-query.git
+cd solar-irradiance-query
+
+# 2. 复制整个 skill 文件夹到 Hermes skills 目录
 cp -r solar-irradiance-query ~/.hermes/skills/
 
-# 复制解析脚本到 Hermes 脚本目录
-cp scripts/gsa_report_parser.py ~/.hermes/scripts/
+# 3. 复制解析脚本到 Hermes 全局脚本目录（skill 运行时调用）
+cp solar-irradiance-query/scripts/gsa_report_parser.py ~/.hermes/scripts/
 ```
 
 ## 使用触发词
@@ -71,11 +62,11 @@ cp scripts/gsa_report_parser.py ~/.hermes/scripts/
 ## 文件结构
 
 ```
-solar-irradiance-query/
-├── SKILL.md                      # 必须：技能说明（YAML frontmatter + Markdown）
-├── scripts/                      # 可选：脚本文件
-│   └── gsa_report_parser.py      #   XLSX 报告解析脚本
-├── assets/                       # 可选：静态资源
-│   └── solar_charts_combined.html #  交互式图表示例
-└── README.md
+solar-irradiance-query/               # GitHub 仓库
+└── solar-irradiance-query/           # Skill 文件夹（复制到 ~/.hermes/skills/）
+    ├── SKILL.md                      # 必须：技能说明（YAML frontmatter + Markdown）
+    ├── scripts/                      # 可选：脚本文件
+    │   └── gsa_report_parser.py      #   XLSX 报告解析脚本
+    └── assets/                       # 可选：静态资源
+        └── solar_charts_combined.html #  交互式图表示例
 ```
