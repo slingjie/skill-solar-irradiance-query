@@ -1,28 +1,75 @@
 ---
 name: solar-irradiance-query
-description: "通过地址名称或经纬度查询光伏辐照度(GHI)、比光伏出力(PVOUT)和月度数据。地址需先转为经纬度，搜索失败时必须反馈用户。"
+description: "通过地址名称或经纬度查询光伏辐照度(GHI/DNI/PVOUT)、月度发电量、逐时发电曲线。支持两种模式：(A) 基础辐照查询 (B) 逐时发电量+图表。"
 triggers:
-  - 用户给出地址名称（小区、楼宇、地名等）
-  - 用户给出经纬度坐标
-  - 需要查询某地辐照度/GHI/光伏数据
-  - 光伏发电量估算、资源评估
+  # === 基础辐照查询（仅调 API） ===
+  - 辐照度、GHI、DNI、散射辐射、DIF
+  - 太阳能资源、光伏资源评估
+  - 比光伏出力、PVOUT、kWh/kWp
+  - 最佳倾角、OPTA、方位角
+  - 年等效利用小时、年发电量、kWh/kWp
+  - "查一下{地点}的辐照度"
+  - "{地点} 太阳能怎么样"
+  - "经纬度 {lat}, {lng} 辐照"
+  - "坐标 {lat} {lng} 光伏"
+  - "{地点} 年发电量"
+  - "光伏 年等效利用小时"
+  # === 逐时发电量（需要下载 XLSX 报告 + 解析 + 图表） ===
+  - 逐时、小时分布、hourly profile、每小时
+  - 出力曲线、发电曲线、功率曲线
+  - 小时占比、出力集中度
+  - "{地点} 逐时发电量"
+  - "{地点} 出力曲线"
+  - "24小时发电分布"
+  - "月度发电量 柱状图"
+  - "发电量 曲线图"
+  # === 组合查询 ===
+  - "{地点} 光伏数据 分析"
+  - "{地点} 辐照度 逐时"
+  - "{地点} 完整报告"
+  - "全面分析 {地点} 光伏"
+  - "{地点} 资源评估 发电量"
+  # === 地址/坐标 ===
+  - 小区、楼宇、厂房、园区、工业园区
+  - 经纬度、坐标、latitude、longitude
+  # === 行业术语 ===
+  - EPC、工商业屋顶、分布式光伏、地面电站
+  - 组件倾角、方位角、装机容量、kWp、MWp
+  - 辐照量、峰值日照时数、PSH
 ---
 
 # Solar Irradiance Query SOP
 
-## 输入格式（两种）
+## 两种查询模式
+
+### 模式 A：基础辐照查询（快速，仅调 GSA API）
+**触发**：用户问 GHI/DNI/PVOUT/最佳倾角/年发电量 等基础参数
+**流程**：地址 → 地理编码 → GSA API → 直接输出表格
+
+### 模式 B：逐时发电量 + 图表（需下载 XLSX 报告）
+**触发**：用户问 逐时/小时分布/出力曲线/图表/曲线图 等
+**流程**：地址 → 地理编码 → GSA API + clarify PV 配置 → 浏览器下载 XLSX → 解析 → 表格 + 图表
+
+### 自动判断
+| 关键词 | 模式 |
+|--------|------|
+| 辐照度/GHI/DNI/PVOUT/最佳倾角/年发电量 | A |
+| 逐时/小时/出力曲线/曲线图/柱状图 | B |
+| "分析"/"完整报告"/同时包含辐照+发电量 | A+B |
+
+## 输入格式
 
 **A. 地址/名称**（优先）：用户提供地名、小区、楼宇、地标等  
 **B. 经纬度**：用户直接给坐标（跳过地理编码步骤）
 
 ## 核心流程
 
-### Step 1：判断输入类型
+### Step 1：判断输入类型 + 模式
 
-| 输入类型 | 处理 |
-|----------|------|
-| 经纬度（数字+度） | 跳过 Step 2，直接进入 Step 3 |
-| 地址/名称（中文/文字） | 进入 Step 2 地理编码 |
+| 输入类型 | 模式判断 |
+|----------|----------|
+| 经纬度（数字+度） | 用户问的是辐照度 → A；问的是逐时/曲线 → B |
+| 地址/名称（中文/文字） | 同上，按关键词判断 |
 
 ### Step 2：地理编码（地址 → 经纬度）
 
@@ -31,10 +78,6 @@ triggers:
 #### 方案 A：Web Search（首选，快速）
 
 用 web_search 搜索 `{地址名称} 经纬度` 或 `{地址名称} 坐标`。
-
-示例搜索词：
-- `"杭州逸都花苑小区 经纬度"`
-- `"上海市浦东新区 coordinates"`
 
 **解析规则：**
 - 搜索结果中明确包含 `地理坐标：`、`经纬度：`、`坐标：` 等关键词的 → 提取数字
@@ -59,7 +102,7 @@ browser_snapshot → 提取结果
 ⚠️ 无法找到"{地址名称}"的精确经纬度。
 
 请提供以下任一信息：
-1. 更详细的地址（如：杭州市临平区北沙西路28号逸都花苑）
+1. 更详细的地址（如：XX市XX区XX路XX号）
 2. 高德/百度地图中的坐标（如：30.44, 120.29）
 3. 高德地图链接（如：https://www.amap.com/place/xxx）
 ```
@@ -90,16 +133,16 @@ curl -s "https://api.globalsolaratlas.info/data/lta?loc=纬度,经度"
 
 | 场景 | 处理 |
 |------|------|
-| API 返回正常 JSON | 进入 Step 6 输出 |
+| API 返回正常 JSON | 继续 |
 | API 返回空数据或报错 | 回复用户：该坐标暂无法获取辐照度数据，请确认地址是否正确 |
 | API 超时/HTTP 错误 | 回复用户：辐照度服务暂时不可用，请稍后重试 |
 | 地理编码失败 | 按方案 C 反馈用户 |
 
 ## 输出格式（严格固定）
 
-**必须按以下 Markdown 模板输出，不可省略字段、不可调整顺序：**
+### 模式 A：基础辐照查询输出
 
-```markdown
+```
 📍 **{位置名称}** ({纬度}°, {经度}°)
 
 ## 辐照度数据（年累计）
@@ -134,6 +177,8 @@ curl -s "https://api.globalsolaratlas.info/data/lta?loc=纬度,经度"
 - 1kWp 年发电量 ≈ {PVOUT_csi} kWh
 ```
 
+### 模式 B：逐时发电量 + 图表输出（详见下方逐时数据获取）
+
 ## 月度数据填充规则
 
 - `monthly.data.GHI` 为 12 元素数组，index 0 = 1月，index 11 = 12月
@@ -152,15 +197,15 @@ curl -s "https://api.globalsolaratlas.info/data/lta?loc=纬度,经度"
 
 **错误输出（禁止）：**
 
-> 查询了杭州逸都花苑的辐照度，GHI 为 1325 kWh/m²...
+> 查询了该小区的辐照度，GHI 为 1325 kWh/m²...
 
 （原因：地址模糊时自行取了结果，未反馈用户确认）
 
 **正确输出：**
 
-> ⚠️ 搜索"逸都花苑"找到多个候选位置：
-> 1. 逸都·花苑 - 杭州市临平区北沙西路28号（坐标 30.44, 120.29）
-> 2. 逸都花园 - 银川市某区（坐标 38.5, 106.3）
+> ⚠️ 搜索"XX花园"找到多个候选位置：
+> 1. XX花园 - XX市XX区（坐标 30.44, 120.29）
+> 2. XX花园 - XX市XX区（坐标 31.23, 121.47）
 > 请确认是哪个位置？
 
 ## API 技术规格
@@ -182,15 +227,15 @@ curl -s "https://api.globalsolaratlas.info/data/lta?loc=纬度,经度"
 | 坐标系转换 | `terminal` (python3) |
 | 逐时数据解析 | `gsa_report_parser.py` (见下方) |
 
-## 逐时数据获取（仅当用户明确需要时）
+## 逐时数据获取（模式 B 专用）
 
-**触发条件**：用户说"逐时"、"小时分布"、"hourly profile"、"每小时"、"发电量"等关键词。
+**触发条件**：用户说"逐时"、"小时分布"、"hourly profile"、"每小时"、"出力曲线"、"曲线图"、"柱状图"等关键词。
 
 **流程**：
 
 ### Step 1：确认 PV 系统配置（必须问用户，用选择项）
 
-使用 `clarize` 工具逐项询问，**禁止让用户自由输入**。
+使用 `clarify` 工具逐项询问，**禁止让用户自由输入**。
 
 **1.1 系统类型**（单选）：
 
@@ -240,11 +285,6 @@ GSA 支持 URL 参数预配置 PV 系统，可直接跳转：
 https://globalsolaratlas.info/map?s=纬度,经度,10&pv=类型,方位角,倾角,容量
 ```
 
-示例：
-```
-https://globalsolaratlas.info/map?s=30.4405,120.2868,10&pv=medium,180,24,100
-```
-
 | 参数 | 说明 | 可选值 |
 |------|------|--------|
 | `s=` | 坐标+缩放 | `纬度,经度,10`（10=缩放级别） |
@@ -282,19 +322,7 @@ python3 ~/.hermes/scripts/gsa_report_parser.py <file.xlsx> --format json
 - 下载后文件不存在 → 回复用户：下载失败，请手动下载后重试
 - 文件存在但解析结果全为空 → 回复用户：报告数据为空，可能坐标无数据
 
-### Step 4.5：输出截断策略
-
-**全年逐时发电量默认只展示 7月（夏季峰值）和 12月（冬季低谷）作为代表。**
-只有用户明确要求"全年逐时"或"所有月份"时，才展示完整 12 个月。
-
-示例话术：
-```
-以上是 7月（夏季）和 12月（冬季）的逐时发电量。
-如需查看其他月份，请告诉我具体月份（如"3月"、"6月"）。
-如需全年 12 个月完整数据，请说"全年逐时"。
-```
-
-### Step 5：输出结果（固化格式标准）
+### Step 5：输出结果（模式 B 固化格式）
 
 解析完成后，**必须按以下顺序输出**，不得省略：
 
@@ -312,7 +340,7 @@ python3 ~/.hermes/scripts/gsa_report_parser.py <file.xlsx> --format json
 📍 地点：<位置名称>
 🗺 坐标：lat°, lng°（海拔 m）
 🕐 时区：Asia/Shanghai
-📅 报告日期：2026-08-08
+📅 报告日期：YYYY-MM-DD
 ```
 
 **5.3 PV 系统配置**
@@ -344,77 +372,6 @@ python3 ~/.hermes/scripts/gsa_report_parser.py <file.xlsx> --format json
 | ... | ... | ... | ... |
 | **年** | **xxx,xxx** | **xxx.x** | **xxx.x** |
 
-**逐时发电量曲线图（12条曲线叠加）：**
-
-从 XLSX 报告的 Hourly_profiles sheet 提取 PVOUT_total 数据，生成 12 个月的逐时发电量曲线（X 轴 0-24h，Y 轴 Wh），12 条曲线叠加在一张图上。
-
-**图表样式：**
-- 背景：白色 `#ffffff`
-- 网格线：灰色 `#e0e0e0`
-- 柱体：蓝灰渐变
-- 折线：红色/彩色
-- 字体颜色：深灰 `#333` / `#666`
-- 边框：1px solid `#e0e0e0`
-- 圆角容器
-
-**交互功能：**
-1. **柱状图点击**：点击任意月份柱体，高亮显示该月曲线（其余变暗）
-2. **悬停提示**：鼠标悬停在柱体或曲线上显示具体数值
-3. **图例点击**：点击图例可显示/隐藏对应月份
-4. **按钮控制**：显示全部 / 隐藏全部 / 仅夏季 / 仅冬季 / 重置缩放
-5. **滚轮缩放**：在曲线图上滚动鼠标滚轮，缩放 X 轴时间范围
-6. **悬停高亮**：鼠标悬停在图例上，临时高亮对应曲线
-
-生成步骤：
-1. 打开报告的 Hourly_profiles sheet
-2. 定位 "Total photovoltaic power output [Wh]" section
-3. 逐行读取 0-24 小时数据，按月份分组
-4. 使用 HTML Canvas 绘制 12 条曲线（每条对应一个月）
-5. 添加交互事件（click、mousemove、wheel）
-6. 保存为 HTML 文件到 `~/Downloads/solar_charts_combined.html`
-7. 使用 `open_preview` 工具展示图表
-8. 在输出中提供文件路径
-
-示例 Python 代码框架：
-```python
-import openpyxl
-import json
-wb = openpyxl.load_workbook('<file.xlsx>', data_only=True)
-ws = wb['Hourly_profiles']
-month_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-# 状态机读取 PVOUT section（跳过 DNI section）
-in_pvout_section = False
-found_month_header = False
-hour_labels = []
-pvout_by_month = {m: {} for m in month_names}
-for row in ws.iter_rows(min_row=1, max_row=ws.max_row, values_only=True):
-    row_text = " ".join(str(c or "") for c in row)
-    if "photovoltaic power output" in row_text.lower():
-        in_pvout_section = True; found_month_header = False; continue
-    if not in_pvout_section: continue
-    if not found_month_header:
-        if len(row) >= 13 and row[1] in month_names: found_month_header = True
-        continue
-    if "direct normal irradiation" in row_text.lower(): break
-    if row[0] and str(row[0]).strip().lower() == "sum": continue
-    if row[0] and str(row[0]).strip():
-        hour_labels.append(str(row[0]).strip())
-        for i, m in enumerate(month_names):
-            if row[i+1] is not None: pvout_by_month[m][str(row[0]).strip()] = row[i+1]
-# 然后生成 HTML canvas 12 条曲线
-```
-
-图表规格：
-- 尺寸：1050×480 px
-- 背景：深色 `#1a1a2e`
-- 12 条曲线，每种月份一个颜色
-- 线宽：2px，带圆角连接
-- Y 轴：发电量（Wh），自动缩放
-- X 轴：0-24 小时
-- 峰值标记：每个圆点标注
-- 图例：12 个月份，网格布局
-- 标题：包含地点和 PV 配置
-
 **5.6 逐时发电量**
 
 - 默认展示 7月（夏季峰值）和 12月（冬季低谷），**合并为一张表格**
@@ -428,7 +385,6 @@ for row in ws.iter_rows(min_row=1, max_row=ws.max_row, values_only=True):
 | 小时 | 7月 出力 (Wh) | 7月 占比 | 12月 出力 (Wh) | 12月 占比 |
 |------|-------------|---------|-------------|----------|
 | 0 - 1 | | | | |
-| 7-8 | 192,515 | 5.0% | 47,885 | 6.4% |
 | ... | ... | ... | ... | ... |
 
 输出后提示：
@@ -436,8 +392,82 @@ for row in ws.iter_rows(min_row=1, max_row=ws.max_row, values_only=True):
 以上是 7月（夏季峰值）和 12月（冬季低谷）逐时发电量及占比。如需其他月份请告知。
 ```
 
-**5.7 验证提示**
+**5.7 逐时发电量曲线图（12条曲线叠加）**
+
+从 Hourly_profiles sheet 提取 PVOUT 数据，生成 12 个月逐时曲线图（X 轴 0-24h，Y 轴 Wh），叠加在月度柱状图下方。
+
+**图表样式：**
+- 背景：白色 `#ffffff`
+- 网格线：灰色 `#e0e0e0`
+- 月度柱状图：蓝灰渐变 + 红色趋势线
+- 逐时曲线：12 条不同颜色曲线
+- 字体颜色：深灰 `#333` / `#666`
+- 圆角容器边框
+
+**交互功能：**
+1. **柱状图点击**：高亮对应月份曲线
+2. **悬停提示**：显示具体数值
+3. **图例点击**：显示/隐藏月份
+4. **按钮控制**：显示全部 / 隐藏全部 / 仅夏季 / 仅冬季 / 重置缩放
+5. **滚轮缩放**：缩放 X 轴时间范围
+6. **悬停高亮**：鼠标移到图例上临时高亮
+
+生成步骤：
+1. 从 Monthly_averages sheet 提取月发电量（柱状图）
+2. 从 Hourly_profiles sheet 提取逐时发电量（12 条曲线）
+3. HTML Canvas 绘制
+4. 保存到 `~/Downloads/solar_charts_combined.html`
+5. `open_preview` 展示
+
+**5.8 验证提示**
 
 ```
 ✓ 校验：Jan PVOUT 月累计 xxx Wh × 31天 = xx,xxx kWh ≈ 月度数据 xx,xxx kWh ✓
 ```
+
+## 图表代码框架
+
+```python
+import openpyxl, json
+wb = openpyxl.load_workbook('<file.xlsx>', data_only=True)
+
+# 月度数据
+ws = wb['Monthly_averages']
+months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
+month_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+pvout_total = []
+for row in ws.iter_rows(min_row=1, max_row=ws.max_row, values_only=True):
+    if row[0] in month_names:
+        val = str(row[2]).replace(',','') if row[2] else '0'
+        pvout_total.append(float(val))
+
+# 逐时数据
+ws = wb['Hourly_profiles']
+in_pvout_section = False
+found_month_header = False
+hour_labels = []
+pvout_by_month = {m: {} for m in month_names}
+for row in ws.iter_rows(min_row=1, max_row=ws.max_row, values_only=True):
+    if not row: continue
+    row_text = " ".join(str(c or "") for c in row)
+    if "photovoltaic power output" in row_text.lower():
+        in_pvout_section = True; found_month_header = False; continue
+    if not in_pvout_section: continue
+    if not found_month_header:
+        if len(row) >= 13 and row[1] in month_names: found_month_header = True
+        continue
+    if "direct normal irradiation" in row_text.lower(): break
+    if row[0] and str(row[0]).strip().lower() == "sum": continue
+    if row[0] and str(row[0]).strip():
+        hour_labels.append(str(row[0]).strip())
+        for i, m in enumerate(month_names):
+            if row[i+1] is not None: pvout_by_month[m][str(row[0]).strip()] = row[i+1]
+
+series = [[pvout_by_month[m].get(h, 0) for h in hour_labels] for m in month_names]
+# 然后生成 HTML canvas 图表（柱状图+曲线图）
+```
+
+图表规格：
+- 月度柱状图：900×380px，月度发电量 + 趋势线
+- 逐时曲线图：1000×480px，12 条曲线，图例 6 列网格
+- 总容器：白色背景，灰色边框，圆角 8px
