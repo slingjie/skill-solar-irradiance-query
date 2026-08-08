@@ -4,9 +4,9 @@
 
 ## 效果预览
 
-[**点击查看交互图表预览 →**](https://raw.githack.com/slingjie/solar-irradiance-query/main/solar_charts_combined.html)
+[**点击查看交互图表预览 →**](https://raw.githack.com/slingjie/solar-irradiance-query/main/assets/solar_charts_combined.html)
 
-或直接下载 [solar_charts_combined.html](solar_charts_combined.html) 在浏览器中打开。
+或直接下载 [assets/solar_charts_combined.html](assets/solar_charts_combined.html) 在浏览器中打开。
 
 ## 功能
 
@@ -27,8 +27,8 @@
 # 复制 skill 到 Hermes
 cp -r solar-irradiance-query ~/.hermes/skills/
 
-# 复制解析脚本
-cp gsa_report_parser.py ~/.hermes/scripts/
+# 复制解析脚本到 Hermes 脚本目录
+cp scripts/gsa_report_parser.py ~/.hermes/scripts/
 ```
 
 ## 使用触发词
@@ -72,8 +72,10 @@ cp gsa_report_parser.py ~/.hermes/scripts/
 
 ```
 solar-irradiance-query/
-├── SKILL.md                      # Skill 定义（触发条件、流程、输出标准）
-├── gsa_report_parser.py          # XLSX 报告解析脚本
-├── solar_charts_combined.html    # 交互式图表示例（月度柱状图+逐时曲线）
+├── SKILL.md                      # 必须：技能说明（YAML frontmatter + Markdown）
+├── scripts/                      # 可选：脚本文件
+│   └── gsa_report_parser.py      #   XLSX 报告解析脚本
+├── assets/                       # 可选：静态资源
+│   └── solar_charts_combined.html #  交互式图表示例
 └── README.md
 ```
