@@ -11,8 +11,8 @@
   3. INFO: 报告 6 位以上小数坐标出现位置（行政区中心等公开数据允许，人工确认）
 
 blocklist 格式（每行一个词，`#` 注释，`exact:` 前缀=精确匹配）:
-    徽玻
-    exact:小叶
+    项目甲
+    exact:小李
 """
 import argparse, os, re, subprocess, sys
 
@@ -62,7 +62,8 @@ def main():
                 for i, ln in enumerate(content.splitlines(), 1):
                     if w in ln: hits.append((w, f"{f}:{i}"))
         for i, ln in enumerate(content.splitlines(), 1):
-            if re.search(r"[0-9]{2}\.[0-9]{6,}\s*,\s*[0-9]{2}\.[0-9]{6,}", ln):
+            # 中国经度 73-135 为三位整数（如 120.130396），须允许 2-3 位整数部分
+            if re.search(r"[0-9]{2,3}\.[0-9]{6,}\s*,\s*[0-9]{2,3}\.[0-9]{6,}", ln):
                 coord_info.append(f"{f}:{i}  {ln.strip()[:60]}")
 
     # 4) 汇总
