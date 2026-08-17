@@ -21,6 +21,11 @@ Type mapping (source: GSA frontend bundle chunk-CD6ZCY4X.js, enum n_):
 Notes:
 - PVOUT_specific is normalized (kWh/kWp), independent of `capacity`; pass the
   REAL project capacity so PVOUT_total is already project-scoped (kWh / Wh).
+- Annual DNI is overridden with the meteorological (lta) value so the annual
+  figure matches GSA XLSX Map_data / skill Mode A. Monthly DNI keeps pvcalc's
+  plane-of-array value — GSA XLSX Monthly_averages itself uses that same
+  config-dependent DNI (verified: XLSX monthly DNI == pvcalc monthly DNI,
+  while XLSX annual DNI == lta annual DNI). Source recorded in `_dni_source`.
 - monthly-hourly is a TYPICAL DAY (24 values/month); multiply by days-in-month
   to get monthly totals. Monthly totals are also given directly in `monthly`.
 - The API does NOT validate coordinates: ocean coords return data, invalid
@@ -37,6 +42,7 @@ import urllib.request
 from datetime import datetime
 
 API_URL = "https://2eueu84zmf.execute-api.eu-west-1.amazonaws.com/prod/data/pvcalc"
+LTA_URL = "https://api.globalsolaratlas.info/data/lta"
 
 # GSA frontend pv= param -> pvcalc type
 TYPE_MAP = {
@@ -74,6 +80,28 @@ def resolve_type(pv_type):
     return t
 
 
+def query_lta(lat, lng, timeout=30):
+    """Get meteorological (climate) DNI/GHI from lta API (same source as GSA
+    report Map_data, and the solar-irradiance-query skill Mode A).
+
+    pvcalc's DNI is plane-of-array config-dependent; the industry-standard
+    meteorological DNI comes from lta. We override pvcalc's DNI with this so
+    output matches GSA XLSX reports exactly.
+    Returns (annual_dni, monthly_dni_list) or None on failure.
+    """
+    req = urllib.request.Request(f"{LTA_URL}?loc={lat},{lng}")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            d = json.load(resp)
+        annual = d.get("annual", {}).get("data", {})
+        monthly = d.get("monthly", {}).get("data", {})
+        if "DNI" not in annual or "DNI" not in monthly:
+            return None
+        return annual["DNI"], monthly["DNI"]
+    except Exception:
+        return None
+
+
 def query_pvcalc(lat, lng, pv_type, capacity, tilt, azimuth, gmt_offset, timeout=30):
     """POST pvcalc API. Returns parsed JSON or raises RuntimeError."""
     validate_location(lat, lng)
@@ -107,6 +135,17 @@ def query_pvcalc(lat, lng, pv_type, capacity, tilt, azimuth, gmt_offset, timeout
 
     if "annual" not in data or "data" not in data.get("annual", {}):
         raise RuntimeError("接口返回异常（无 annual.data），请稍后重试")
+
+    # 年累计 DNI 用气象口径（与 GSA XLSX Map_data、skill 模式 A 的 lta 一致）。
+    # 月度 DNI 保留 pvcalc 原值：实测 XLSX Monthly_averages 的月度 DNI 就是
+    # pvcalc 配置口径（12 个月之和 = pvcalc annual DNI），与 lta 月度不一致。
+    met = query_lta(lat, lng, timeout)
+    if met is not None:
+        met_annual, _ = met
+        data["annual"]["data"]["DNI"] = met_annual
+        data["_dni_source"] = "annual:lta(meteorological), monthly:pvcalc(plane-of-array)"
+    else:
+        data["_dni_source"] = "pvcalc(plane-of-array)"
     return data
 
 
