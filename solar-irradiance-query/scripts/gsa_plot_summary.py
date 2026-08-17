@@ -24,8 +24,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+MONTHS = ['1月', '2月', '3月', '4月', '5月', '6月',
+          '7月', '8月', '9月', '10月', '11月', '12月']
 LTA_URL = "https://api.globalsolaratlas.info/data/lta"
 
 
@@ -111,7 +111,7 @@ def load_data_json(json_path, location='GSA pvcalc', loc=None):
 def setup_style():
     plt.rcParams.update({
         'font.family': 'sans-serif',
-        'font.sans-serif': ['Arial Unicode MS', 'DejaVu Sans'],
+        'font.sans-serif': ['PingFang SC', 'Arial Unicode MS', 'Hiragino Sans GB', 'DejaVu Sans'],
         'font.size': 10,
         'axes.titlesize': 12,
         'axes.titleweight': 'bold',
@@ -130,9 +130,9 @@ def plot_hourly_curves(d, out_path):
     colors = plt.cm.viridis(np.linspace(0.1, 0.9, 12))
     for i, (month, color) in enumerate(zip(MONTHS, colors)):
         ax.plot(hours, d['pvout_hourly'][:, i], color=color, linewidth=2, label=month)
-    ax.set_xlabel('Hour of day')
-    ax.set_ylabel('Power output [Wh]')
-    ax.set_title(f'Hourly Power Output by Month - {d["location"]}')
+    ax.set_xlabel('小时')
+    ax.set_ylabel('出力 [Wh]')
+    ax.set_title(f'逐时出力曲线（按月份）- {d["location"]}')
     ax.set_xlim(0, 23)
     ax.set_xticks(range(0, 24, 2))
     ax.legend(loc='upper left', ncol=3, frameon=False, fontsize=8)
@@ -145,14 +145,14 @@ def plot_hourly_heatmap(d, out_path):
     """图2: 逐时热力图（24h×12月）"""
     fig, ax = plt.subplots(figsize=(10, 6))
     im = ax.imshow(d['pvout_hourly'].T, aspect='auto', cmap='YlOrRd', origin='lower')
-    ax.set_xlabel('Hour of day')
-    ax.set_ylabel('Month')
-    ax.set_title(f'Hourly Power Output Heatmap [Wh] - {d["location"]}')
+    ax.set_xlabel('小时')
+    ax.set_ylabel('月份')
+    ax.set_title(f'逐时出力热力图 [Wh] - {d["location"]}')
     ax.set_xticks(range(0, 24, 2))
     ax.set_xticklabels(range(0, 24, 2))
     ax.set_yticks(range(12))
     ax.set_yticklabels(MONTHS)
-    plt.colorbar(im, ax=ax, shrink=0.8, label='Power [Wh]')
+    plt.colorbar(im, ax=ax, shrink=0.8, label='出力 [Wh]')
     plt.tight_layout()
     fig.savefig(out_path)
     plt.close(fig)
@@ -162,9 +162,9 @@ def plot_monthly_bar_dni(d, out_path):
     """图3: 月度发电量柱状图 + DNI 折线（双Y轴）"""
     fig, ax1 = plt.subplots(figsize=(10, 6))
     ax1.bar(MONTHS, [x / 1000 for x in d['pvout_total']],
-            color='#f39c12', alpha=0.85, label='Monthly PVOUT')
-    ax1.set_xlabel('Month')
-    ax1.set_ylabel('Monthly generation [MWh]', color='#f39c12')
+            color='#f39c12', alpha=0.85, label='月度发电量')
+    ax1.set_xlabel('月份')
+    ax1.set_ylabel('月度发电量 [MWh]', color='#f39c12')
     ax1.tick_params(axis='y', labelcolor='#f39c12')
     ax1.set_ylim(0, max(d['pvout_total']) / 1000 * 1.2)
     ax2 = ax1.twinx()
@@ -175,7 +175,7 @@ def plot_monthly_bar_dni(d, out_path):
     l1, lab1 = ax1.get_legend_handles_labels()
     l2, lab2 = ax2.get_legend_handles_labels()
     ax1.legend(l1 + l2, lab1 + lab2, loc='upper left', frameon=False)
-    ax1.set_title(f'Monthly Power Output & DNI - {d["location"]}')
+    ax1.set_title(f'月度发电量与 DNI - {d["location"]}')
     plt.tight_layout()
     fig.savefig(out_path)
     plt.close(fig)
@@ -188,8 +188,8 @@ def plot_daily_hbar(d, out_path):
     bars = ax.barh(MONTHS, daily_kwh,
                    color=plt.cm.RdYlGn(np.linspace(0.2, 0.9, 12)),
                    edgecolor='white', linewidth=0.5)
-    ax.set_xlabel('Daily average generation [kWh/day]')
-    ax.set_title(f'Daily Average Power Output by Month - {d["location"]}')
+    ax.set_xlabel('日均发电量 [kWh/天]')
+    ax.set_title(f'各月日均发电量 - {d["location"]}')
     for bar, val in zip(bars, daily_kwh):
         ax.text(bar.get_width() + 20, bar.get_y() + bar.get_height() / 2,
                 f'{val:.0f}', va='center', fontsize=9)
@@ -211,10 +211,10 @@ def plot_polar_rose(d, out_path):
     ax.set_theta_direction(-1)
     ax.set_xticks(theta)
     ax.set_xticklabels(MONTHS)
-    ax.set_title(f'Monthly Generation Polar Rose - {d["location"]}\n(Daily avg kWh/day)', pad=20)
+    ax.set_title(f'月发电量极坐标玫瑰图 - {d["location"]}\n（日均 kWh/天）', pad=20)
     sm = plt.cm.ScalarMappable(cmap='YlOrRd', norm=norm)
     sm.set_array([])
-    plt.colorbar(sm, ax=ax, shrink=0.6, pad=0.1, label='kWh/day')
+    plt.colorbar(sm, ax=ax, shrink=0.6, pad=0.1, label='kWh/天')
     plt.tight_layout()
     fig.savefig(out_path)
     plt.close(fig)
@@ -224,14 +224,14 @@ def plot_irradiation(d, out_path):
     """图6: GHI/DNI/DIF/GTI 年辐照对比"""
     fig, ax = plt.subplots(figsize=(8, 6))
     x = np.arange(4)
-    labels = ['GHI', 'DNI', 'DIF', 'GTI\noptimum']
+    labels = ['GHI', 'DNI', 'DIF', 'GTI\n最佳倾角']
     colors = ['#3498db', '#e74c3c', '#95a5a6', '#f39c12']
     vals = [d['irr']['GHI'], d['irr']['DNI'], d['irr']['DIF'], d['irr']['GTI_opta']]
     bars = ax.bar(x, vals, color=colors, edgecolor='white', linewidth=1)
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
-    ax.set_ylabel('Annual irradiation [kWh/m²]')
-    ax.set_title(f'Annual Solar Irradiation Components - {d["location"]}')
+    ax.set_ylabel('年辐照量 [kWh/m²]')
+    ax.set_title(f'年辐照量组成 - {d["location"]}')
     for bar, val in zip(bars, vals):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 20,
                 f'{val:.1f}', ha='center', va='bottom', fontweight='bold', fontsize=10)
@@ -252,12 +252,12 @@ def plot_scatter(d, out_path):
     z = np.polyfit(d['dni_monthly'], d['pvout_specific'], 1)
     p = np.poly1d(z)
     xl = np.linspace(min(d['dni_monthly']) - 5, max(d['dni_monthly']) + 5, 100)
-    ax.plot(xl, p(xl), 'r--', alpha=0.5, label=f'Trend: y={z[0]:.2f}x+{z[1]:.1f}')
+    ax.plot(xl, p(xl), 'r--', alpha=0.5, label=f'趋势: y={z[0]:.2f}x+{z[1]:.1f}')
     ax.set_xlabel('DNI [kWh/m²]')
-    ax.set_ylabel('Specific PVOUT [kWh/kWp]')
-    ax.set_title(f'Specific PVOUT vs DNI - {d["location"]}')
+    ax.set_ylabel('单位出力 [kWh/kWp]')
+    ax.set_title(f'单位出力与 DNI 关系 - {d["location"]}')
     ax.legend(frameon=False)
-    plt.colorbar(sc, ax=ax, shrink=0.8, label='Month index')
+    plt.colorbar(sc, ax=ax, shrink=0.8, label='月份')
     plt.tight_layout()
     fig.savefig(out_path)
     plt.close(fig)
@@ -268,9 +268,9 @@ def plot_area(d, out_path):
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.fill_between(MONTHS, d['pvout_specific'], alpha=0.4, color='#f39c12')
     ax.plot(MONTHS, d['pvout_specific'], color='#e67e22', linewidth=2, marker='o')
-    ax.set_xlabel('Month')
-    ax.set_ylabel('Specific PVOUT [kWh/kWp]')
-    ax.set_title(f'Monthly Specific Power Output Area Chart - {d["location"]}')
+    ax.set_xlabel('月份')
+    ax.set_ylabel('单位出力 [kWh/kWp]')
+    ax.set_title(f'各月单位出力面积图 - {d["location"]}')
     for m, v in zip(MONTHS, d['pvout_specific']):
         ax.annotate(f'{v:.1f}', (m, v), textcoords="offset points",
                     xytext=(0, 8), ha='center', fontsize=8)
@@ -289,30 +289,30 @@ def plot_combined(d, out_path):
     ax = axes[0, 0]
     for i, (month, color) in enumerate(zip(MONTHS, plt.cm.viridis(np.linspace(0.1, 0.9, 12)))):
         ax.plot(hours, d['pvout_hourly'][:, i], color=color, linewidth=1.5, label=month)
-    ax.set_xlabel('Hour')
-    ax.set_ylabel('Power [Wh]')
-    ax.set_title('(a) Hourly Power Curves')
+    ax.set_xlabel('小时')
+    ax.set_ylabel('出力 [Wh]')
+    ax.set_title('(a) 逐时出力曲线')
     ax.set_xlim(0, 23)
     ax.legend(loc='upper left', ncol=4, frameon=False, fontsize=7)
 
     # 右上: 月度柱状图 + DNI
     ax = axes[0, 1]
     ax.bar(MONTHS, [x / 1000 for x in d['pvout_total']], color='#f39c12', alpha=0.85)
-    ax.set_xlabel('Month')
-    ax.set_ylabel('MWh', color='#f39c12')
+    ax.set_xlabel('月份')
+    ax.set_ylabel('发电量 [MWh]', color='#f39c12')
     ax2 = ax.twinx()
     ax2.plot(MONTHS, d['dni_monthly'], 'ro-', linewidth=1.5, markersize=4)
     ax2.set_ylabel('DNI [kWh/m²]', color='#e74c3c')
-    ax.set_title('(b) Monthly Generation & DNI')
+    ax.set_title('(b) 月度发电量与 DNI')
 
     # 左下: 热力图
     ax = axes[1, 0]
     im = ax.imshow(d['pvout_hourly'].T, aspect='auto', cmap='YlOrRd', origin='lower')
-    ax.set_xlabel('Hour')
-    ax.set_ylabel('Month')
+    ax.set_xlabel('小时')
+    ax.set_ylabel('月份')
     ax.set_yticks(range(12))
     ax.set_yticklabels(MONTHS)
-    ax.set_title('(c) Hourly Heatmap [Wh]')
+    ax.set_title('(c) 逐时热力图 [Wh]')
     plt.colorbar(im, ax=ax, shrink=0.8)
 
     # 右下: 辐照对比
@@ -321,11 +321,11 @@ def plot_combined(d, out_path):
     ax.bar(x_pos, [d['irr']['GHI'], d['irr']['DNI'], d['irr']['DIF'], d['irr']['GTI_opta']],
            color=['#3498db', '#e74c3c', '#95a5a6', '#f39c12'])
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(['GHI', 'DNI', 'DIF', 'GTI_opt'])
+    ax.set_xticklabels(['GHI', 'DNI', 'DIF', 'GTI\n最佳倾角'])
     ax.set_ylabel('kWh/m²')
-    ax.set_title('(d) Annual Irradiation')
+    ax.set_title('(d) 年辐照量对比')
 
-    fig.suptitle(f'GSA Photovoltaic Report Summary - {d["location"]}',
+    fig.suptitle(f'GSA 光伏报告汇总 - {d["location"]}',
                  fontsize=14, fontweight='bold', y=1.02)
     plt.tight_layout()
     fig.savefig(out_path, bbox_inches='tight')

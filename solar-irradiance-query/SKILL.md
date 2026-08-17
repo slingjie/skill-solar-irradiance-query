@@ -269,7 +269,7 @@ curl -s "https://api.globalsolaratlas.info/data/lta?loc=纬度,经度"
 | 逐时数据（模式 B 首选） | `terminal` (`gsa_pvcalc.py` → pvcalc API，见上方 Step 3) |
 | 逐时数据（模式 B 降级） | `browser` 下载 XLSX + `gsa_report_parser.py` |
 | 坐标系转换 | `terminal` (python3) |
-| 图表生成 | `gsa_plot_summary.py`（matplotlib，9 种图，见 5.9） |
+| 图表生成 | `gsa_plot_summary.py`（matplotlib，9 种图，见 5.8） |
 
 ## 逐时数据获取（模式 B 专用）
 
@@ -496,19 +496,13 @@ python3 <skill目录>/scripts/gsa_report_parser.py <file.xlsx> --format json
 以上是 7月（夏季峰值）和 12月（冬季低谷）逐时发电量及占比。如需其他月份请告知。
 ```
 
-**5.7 逐时发电量曲线图（12条曲线叠加）**
-
-从 Hourly_profiles sheet 提取 PVOUT 数据，生成 12 个月逐时曲线图（X 轴 0-24h，Y 轴 Wh），叠加在月度柱状图下方。
-
-**图表生成统一用 matplotlib（见 5.9），HTML Canvas 交互图方案已弃用，禁止再生成 `solar_charts_combined.html`。**
-
-**5.8 验证提示**
+**5.7 验证提示**
 
 ```
 ✓ 校验：Jan PVOUT 月累计 xxx Wh × 31天 = xx,xxx kWh ≈ 月度数据 xx,xxx kWh ✓
 ```
 
-**5.9 matplotlib 综合图（2×2 汇总，所有图表统一走此方案）**
+**5.8 matplotlib 综合图（2×2 汇总，所有图表统一走此方案）**
 
 用户要"汇总图/综合图/科研绘图/报告图"时，用 matplotlib 生成 2×2 综合图：
 

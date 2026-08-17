@@ -10,9 +10,9 @@
   2. FAIL(退出码1): blocklist 文件本身被 git 跟踪（防泄密清单自己先被 commit 上去）
   3. INFO: 报告 6 位以上小数坐标出现位置（行政区中心等公开数据允许，人工确认）
 
-blocklist 格式（每行一个词，`#` 注释，`exact:` 前缀=精确匹配）:
-    项目甲
-    exact:小李
+blocklist 格式（每行一个词，`#` 注释，`exact:` 前缀=词边界整词匹配，前后不得是词字符/汉字）:
+    项目甲          # 子串模式（默认）
+    exact:小李      # 整词模式：命中"小李，"、"小李 你好"，不命中"小李子词典"
 """
 import argparse, os, re, subprocess, sys
 
@@ -54,9 +54,10 @@ def main():
         except Exception:
             continue
         for w in exacts:
-            if w in content:
-                for i, ln in enumerate(content.splitlines(), 1):
-                    if w in ln: hits.append((f"exact:{w}", f"{f}:{i}"))
+            # 词边界整词匹配：前后不得是词字符（含汉字），避免"小叶"命中"小叶紫檀"类误报
+            pat = re.compile(r"(?<!\w)" + re.escape(w) + r"(?!\w)")
+            for i, ln in enumerate(content.splitlines(), 1):
+                if pat.search(ln): hits.append((f"exact:{w}", f"{f}:{i}"))
         for w in substrings:
             if w in content:
                 for i, ln in enumerate(content.splitlines(), 1):
