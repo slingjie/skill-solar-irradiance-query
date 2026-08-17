@@ -6,10 +6,6 @@
 
 ## 效果预览
 
-[**点击查看交互图表预览 →**](https://cdn.jsdelivr.net/gh/slingjie/solar-irradiance-query@main/solar-irradiance-query/assets/solar_charts_combined.html)
-
-或直接下载 [solar-irradiance-query/assets/solar_charts_combined.html](solar-irradiance-query/assets/solar_charts_combined.html) 在浏览器中打开。
-
 **matplotlib 2×2 综合汇总图示例**（月度发电量柱状图 + 逐时曲线 + 热力图 + 资源对比，`gsa_plot_summary.py` 输出）：
 
 ![2×2 综合汇总图](solar-irradiance-query/assets/09_combined_summary.png)
@@ -64,8 +60,8 @@ cp -r solar-irradiance-query ./.codex/skills/           # Codex
 
 ## 数据来源
 
-- **GSA API**：`https://api.globalsolaratlas.info/data/lta?loc=lat,lng`
-- **完整报告**：浏览器自动化下载 XLSX（含 PV 配置）
+- **GSA API**：`https://api.globalsolaratlas.info/data/lta?loc=lat,lng`（基础辐照）
+- **逐时/PV 报告**：GSA pvcalc API 优先（`gsa_pvcalc.py`，免浏览器），失败时降级浏览器下载 XLSX（含 PV 配置）
 - **数据版本**：Solargis v2.2.68
 
 ## 地理编码（地址 → 经纬度）
@@ -96,8 +92,9 @@ solar-irradiance-query/               # GitHub 仓库
 └── solar-irradiance-query/           # Skill 文件夹（复制到任意 Agent 的 skills 目录）
     ├── SKILL.md                      # 必须：技能说明（YAML frontmatter + Markdown）
     ├── scripts/                      # 可选：脚本文件
-    │   ├── gsa_report_parser.py      #   XLSX 报告解析脚本
+    │   ├── gsa_pvcalc.py             #   GSA pvcalc API 直连（模式B 首选，免浏览器）
+    │   ├── gsa_report_parser.py      #   XLSX 报告解析脚本（模式B 降级）
     │   └── gsa_plot_summary.py       #   matplotlib 综合绘图（2×2 汇总 / 全部 9 种）
     └── assets/                       # 可选：静态资源
-        └── solar_charts_combined.html #  交互式图表示例
+        └── 09_combined_summary.png   #  2×2 综合汇总图示例
 ```

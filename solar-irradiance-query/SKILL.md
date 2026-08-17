@@ -110,7 +110,7 @@ curl -s "https://restapi.amap.com/v3/place/text?keywords={关键词}&city={城�
 - `status` ≠ "1" → key 无效或地址无效
 - 查不到 → 进入方案 B
 
-**实测案例**（2026-08）："浦江县石宅小学"（已并入杭坪镇中心小学），web_search/高德网页/腾讯/百度地图全部被验证码拦截，高德 API 一次返回 `119.816655,29.512240`。
+**实测案例**（2026-08）：某已撤并的乡镇小学（已并入镇中心小学），web_search/高德网页/腾讯/百度地图全部被验证码拦截，高德 API 一次返回精确坐标。
 
 #### 方案 B：Web Search（兜底）
 
@@ -269,7 +269,7 @@ curl -s "https://api.globalsolaratlas.info/data/lta?loc=纬度,经度"
 | 逐时数据（模式 B 首选） | `terminal` (`gsa_pvcalc.py` → pvcalc API，见上方 Step 3) |
 | 逐时数据（模式 B 降级） | `browser` 下载 XLSX + `gsa_report_parser.py` |
 | 坐标系转换 | `terminal` (python3) |
-| 图表生成 | `gsa_plot_summary.py` / HTML canvas |
+| 图表生成 | `gsa_plot_summary.py`（matplotlib，9 种图，见 5.9） |
 
 ## 逐时数据获取（模式 B 专用）
 
@@ -477,7 +477,7 @@ python3 <skill目录>/scripts/gsa_report_parser.py <file.xlsx> --format json
 - 用户指定月份 → 展示该月 24 小时
 - 用户明确要求"全年" → 展示 12 个月完整数据
 - 展示 PVOUT（Wh）+ **小时占比（%）**
-- 占比 = 小时 PVOUT / 当月总 PVOUT × 100%
+- 占比 = 小时 PVOUT / 当日（典型日）24h 总和 × 100%（monthly-hourly 为典型日口径，分母用当天 24h 之和，勿用月累计值）
 
 **默认展示格式（7月+12月合表）：**
 
@@ -495,28 +495,7 @@ python3 <skill目录>/scripts/gsa_report_parser.py <file.xlsx> --format json
 
 从 Hourly_profiles sheet 提取 PVOUT 数据，生成 12 个月逐时曲线图（X 轴 0-24h，Y 轴 Wh），叠加在月度柱状图下方。
 
-**图表样式：**
-- 背景：白色 `#ffffff`
-- 网格线：灰色 `#e0e0e0`
-- 月度柱状图：蓝灰渐变 + 红色趋势线
-- 逐时曲线：12 条不同颜色曲线
-- 字体颜色：深灰 `#333` / `#666`
-- 圆角容器边框
-
-**交互功能：**
-1. **柱状图点击**：高亮对应月份曲线
-2. **悬停提示**：显示具体数值
-3. **图例点击**：显示/隐藏月份
-4. **按钮控制**：显示全部 / 隐藏全部 / 仅夏季 / 仅冬季 / 重置缩放
-5. **滚轮缩放**：缩放 X 轴时间范围
-6. **悬停高亮**：鼠标移到图例上临时高亮
-
-生成步骤：
-1. 从 Monthly_averages sheet 提取月发电量（柱状图）
-2. 从 Hourly_profiles sheet 提取逐时发电量（12 条曲线）
-3. HTML Canvas 绘制
-4. 保存到 `~/Downloads/solar_charts_combined.html`
-5. `open_preview` 展示
+**图表生成统一用 matplotlib（见 5.9），HTML Canvas 交互图方案已弃用，禁止再生成 `solar_charts_combined.html`。**
 
 **5.8 验证提示**
 
@@ -524,7 +503,7 @@ python3 <skill目录>/scripts/gsa_report_parser.py <file.xlsx> --format json
 ✓ 校验：Jan PVOUT 月累计 xxx Wh × 31天 = xx,xxx kWh ≈ 月度数据 xx,xxx kWh ✓
 ```
 
-**5.9 matplotlib 综合图（2×2 汇总，替代/补充 HTML 图）**
+**5.9 matplotlib 综合图（2×2 汇总，所有图表统一走此方案）**
 
 用户要"汇总图/综合图/科研绘图/报告图"时，用 matplotlib 生成 2×2 综合图：
 
@@ -554,50 +533,3 @@ python3 <skill目录>/scripts/gsa_report_parser.py <file.xlsx> --format json
 - 必须用 `~/.hermes/hermes-agent/venv/bin/python3` 运行（matplotlib 装在该 venv）
 - 输出默认到 `<xlsx同目录>/charts/`，用 `--out` 指定目录
 - 生成后用 `open_preview` 或 MEDIA: 路径展示给用户
-
-## 图表代码框架
-
-```python
-import openpyxl, json
-wb = openpyxl.load_workbook('<file.xlsx>', data_only=True)
-
-# 月度数据
-ws = wb['Monthly_averages']
-months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
-month_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-pvout_total = []
-for row in ws.iter_rows(min_row=1, max_row=ws.max_row, values_only=True):
-    if row[0] in month_names:
-        val = str(row[2]).replace(',','') if row[2] else '0'
-        pvout_total.append(float(val))
-
-# 逐时数据
-ws = wb['Hourly_profiles']
-in_pvout_section = False
-found_month_header = False
-hour_labels = []
-pvout_by_month = {m: {} for m in month_names}
-for row in ws.iter_rows(min_row=1, max_row=ws.max_row, values_only=True):
-    if not row: continue
-    row_text = " ".join(str(c or "") for c in row)
-    if "photovoltaic power output" in row_text.lower():
-        in_pvout_section = True; found_month_header = False; continue
-    if not in_pvout_section: continue
-    if not found_month_header:
-        if len(row) >= 13 and row[1] in month_names: found_month_header = True
-        continue
-    if "direct normal irradiation" in row_text.lower(): break
-    if row[0] and str(row[0]).strip().lower() == "sum": continue
-    if row[0] and str(row[0]).strip():
-        hour_labels.append(str(row[0]).strip())
-        for i, m in enumerate(month_names):
-            if row[i+1] is not None: pvout_by_month[m][str(row[0]).strip()] = row[i+1]
-
-series = [[pvout_by_month[m].get(h, 0) for h in hour_labels] for m in month_names]
-# 然后生成 HTML canvas 图表（柱状图+曲线图）
-```
-
-图表规格：
-- 月度柱状图：900×380px，月度发电量 + 趋势线
-- 逐时曲线图：1000×480px，12 条曲线，图例 6 列网格
-- 总容器：白色背景，灰色边框，圆角 8px
