@@ -538,3 +538,13 @@ python3 <skill目录>/scripts/gsa_report_parser.py <file.xlsx> --format json
 - 必须用 `~/.hermes/hermes-agent/venv/bin/python3` 运行（matplotlib 装在该 venv）
 - 输出默认到 `<xlsx同目录>/charts/`，用 `--out` 指定目录
 - 生成后用 `open_preview` 或 MEDIA: 路径展示给用户
+
+## 回归测试
+
+改动 `gsa_pvcalc.py` / `gsa_report_parser.py` 或怀疑 GSA 接口口径变化时，跑回归比对：
+
+```bash
+python3 scripts/regression_test.py   # 需 AMAP_WEBSERVICE_KEY（脚本自动 source ~/.hermes/.env 或 coding .env）
+```
+
+语料与期望值见 `references/regression-cases.md`：5 个案例、18 项断言（含「月合计=年值」口径不变量与异常路径），容差 ±3%。退出码 0 = 全部通过。
