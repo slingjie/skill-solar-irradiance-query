@@ -170,6 +170,8 @@ curl -s "https://api.globalsolaratlas.info/data/lta?loc=纬度,经度"
 
 **⚠️ 字段名注意（实测 2026-08）：** lta 接口 `annual.data` 的比光伏出力字段是 **`PVOUT_csi`**（不是 `PVOUT`，按 `PVOUT` 取值会 KeyError）。完整字段：`PVOUT_csi` / `DNI` / `GHI` / `DIF` / `GTI_opta` / `OPTA` / `TEMP` / `ELE`。
 
+**输出：按下方「📄 报告 A：基础辐照查询」模板输出（5 节，emoji 1️⃣-5️⃣），数据日期、时区取当前查询实际值。模式 A 无需确认 PV 配置、无需下载 XLSX。**
+
 ### Step 5：异常处理
 
 | 场景 | 处理 |
@@ -179,52 +181,177 @@ curl -s "https://api.globalsolaratlas.info/data/lta?loc=纬度,经度"
 | API 超时/HTTP 错误 | 回复用户：辐照度服务暂时不可用，请稍后重试 |
 | 地理编码失败 | 按方案 C 反馈用户 |
 
-## 输出格式（严格固定）
+## 输出格式（严格固定，三份报告模板）
 
-### 模式 A：基础辐照查询输出
+**⛔ 最高优先级规则：所有数字必须来自脚本输出，禁止编造、推算、四舍五入。**
+**所有报告必须按下述章节顺序、emoji 编号输出，不得省略、不得改序、不得改名。**
+
+### 全局字段来源映射
+
+| 输出字段 | 来源接口 | 说明 |
+|---|---|---|
+| GHI / DIF / GTI_opta / OPTA / TEMP / ELE / PVOUT_csi | lta annual / monthly | 气象口径，模式 A 数据源 |
+| PVOUT_specific / PVOUT_total / GTI(配置倾角) | pvcalc annual / monthly | 按用户 PV 配置 |
+| 年 DNI | pvcalc（已自动覆盖为 lta 气象口径） | gsa_pvcalc.py 处理 |
+| 月度 DNI | pvcalc monthly | 配置口径，与 GSA XLSX Monthly_averages 一致 |
+| 逐时 PVOUT / DNI | pvcalc monthly-hourly | **典型日**口径（日值 × 当月天数 = 月累计） |
+| GHI / DIF / GTI_opta（模式 B 年累计表需要时） | lta annual | pvcalc 不返回，须额外调 lta 补齐 |
+
+### 全局数值精度
+
+| 类型 | 精度 | 示例 |
+|---|---|---|
+| 辐照 kWh/m²（年累计/月度） | 1 位小数 | 1329.5 |
+| 发电量 kWh | 整数 + 千分位 | 1,060,570 |
+| 单位出力 kWh/kWp | 2 位小数 | 1060.57 |
+| 逐时出力 Wh | 整数 + 千分位 | 506,410 |
+| 占比 % | 1 位小数 | 12.6% |
+| 等效利用小时 h | 整数 | 1061 |
+| 坐标 | 6 位小数 | 30.380793 |
+
+### 文件输出约定（固化）
+
+**输出根目录**：`<用户下载目录>/solar-reports/`（macOS `~/Downloads/solar-reports/`；可用环境变量 `SOLAR_REPORT_ROOT` 覆盖，给别人用时同理）。
+
+每次查询在 `{根目录}/{位置名称}/{YYYYMMDD}/` 新建目录，历史留档不覆盖：
 
 ```
-📍 **{位置名称}** ({纬度}°, {经度}°)
+solar-reports/{位置名称}/{YYYYMMDD}/
+├── charts/
+│   ├── 09_combined_summary.png   ← 默认必有（2×2 综合图）
+│   └── 01~08_*.png               ← --all 时 01-09 全出
+├── {位置名称}_pvcalc.json        ← pvcalc 原始数据
+├── {位置名称}_报告.md            ← 报告全文（与聊天输出一致）
+└── GSA_Report_{位置名称}.xlsx    ← GSA 原件（gsa_download_xlsx.py 自动下载，复核用）
+```
 
-## 辐照度数据（年累计）
-- **GHI（总水平辐射）**: {X} kWh/m²
-- DNI（直接法向）: {X} kWh/m²
-- DIF（散射水平）: {X} kWh/m²
-- GTI opta（最佳倾角）: {X} kWh/m²
-- 最佳倾角: {X}°
+### 📄 报告 A：基础辐照查询（模式 A，共 5 节）
 
-## 光伏数据
-- **PVOUT（比光伏出力）**: {X} kWh/kWp（lta 接口字段名 `PVOUT_csi`）
-- 气温: {X} °C
-- 海拔: {X} m
+```markdown
+# 📍 {位置名称} — 光伏辐照报告（模式 A）
 
-## 月度数据
-| 月份 | GHI | DNI | DIF | GTI | PVOUT | 气温 |
-|------|-----|-----|-----|-----|-------|------|
-| 1月  |     |     |     |     |       |      |
-| 2月  |     |     |     |     |       |      |
-| 3月  |     |     |     |     |       |      |
-| 4月  |     |     |     |     |       |      |
-| 5月  |     |     |     |     |       |      |
-| 6月  |     |     |     |     |       |      |
-| 7月  |     |     |     |     |       |      |
-| 8月  |     |     |     |     |       |      |
-| 9月  |     |     |     |     |       |      |
-| 10月 |     |     |     |     |       |      |
-| 11月 |     |     |     |     |       |      |
-| 12月 |     |     |     |     |       |      |
+1️⃣ **站点信息**
+📍 地点：{位置名称} | 🗺 坐标：{lat}°, {lng}°（海拔 {ELE} m）| 🕐 时区：{Asia/Shanghai 等} | 📅 数据日期：{YYYY-MM-DD} | 📡 数据源：GSA lta（Solargis v2.2.68）
 
-## 发电量估算
+2️⃣ **辐照资源（年累计）**
+
+| 指标 | 值 |
+|---|---|
+| GHI（总水平辐射） | {X} kWh/m² |
+| DNI（直接法向） | {X} kWh/m² |
+| DIF（散射水平） | {X} kWh/m² |
+| GTI_opta（最佳倾角辐射） | {X} kWh/m² |
+| 最佳倾角 OPTA | {X}° |
+
+3️⃣ **光伏参数**
+
+| 指标 | 值 |
+|---|---|
+| PVOUT_csi（标准比出力） | {X} kWh/kWp |
+| 年均温度 | {X} °C |
+| 海拔 | {X} m |
+
+4️⃣ **月度辐照**
+
+| 月份 | GHI (kWh/m²) | DNI (kWh/m²) | DIF (kWh/m²) | GTI_opta (kWh/m²) | PVOUT_csi (kWh/kWp) | 气温 (°C) |
+|------|------|------|------|------|------|------|
+| 1月 | {X} | {X} | {X} | {X} | {X} | {X} |
+| 2月 | | | | | | |
+| ...（12 个月全列） | | | | | | |
+| **年** | **{12月求和}** | | | | | |
+
+5️⃣ **发电量估算**
 - 1kWp 年发电量 ≈ {PVOUT_csi} kWh
 ```
 
-### 模式 B：逐时发电量 + 图表输出（详见下方逐时数据获取）
+### 📄 报告 B：逐时发电量（模式 B，共 7 节）
 
-## 月度数据填充规则
+```markdown
+# 📍 {位置名称} — 光伏发电量报告（模式 B）
 
-- `monthly.data.GHI` 为 12 元素数组，index 0 = 1月，index 11 = 12月
-- 数值保留两位小数（或按原始精度）
-- 表格中数字右对齐可用 `:---:`，左对齐 `:---`
+1️⃣ **站点信息**
+📍 地点：{位置名称} | 🗺 坐标：{lat}°, {lng}°（海拔 {ELE} m）| 🕐 时区：{时区} | 📅 数据日期：{YYYY-MM-DD} | 📡 数据源：GSA pvcalc + XLSX 复核（Solargis v2.2.68）
+
+2️⃣ **PV 系统配置**
+⚡ {类型} | {容量} kWp | 倾角 {tilt}° | 方位角 {azimuth}°
+
+3️⃣ **年累计发电量**
+
+| 指标 | 值 |
+|---|---|
+| **年发电量** | **{X} kWh（{Y} GWh）** |
+| 单位出力 | {X} kWh/kWp |
+| 等效利用小时 | {X} h（= 年发电量 ÷ 容量，禁止用 GTI/PSH 冒充） |
+| GTI（{tilt}° 组件平面） | {X} kWh/m² |
+| DNI（气象口径） | {X} kWh/m² |
+| 最佳倾角 | {X}° |
+| 海拔 | {X} m |
+| 年均温度 | {X} °C |
+
+4️⃣ **月度发电量**
+
+| 月 | 发电量 (kWh) | 单位出力 (kWh/kWp) | DNI (kWh/m²) |
+|----|-------------|-------------------|--------------|
+| 1月 | {X} | {X} | {X} |
+| ...（12 个月全列） | | | |
+| **年** | **{12月求和}** | **{X}** | **{X}** |
+
+5️⃣ **逐时发电量（典型日）**
+
+- 默认 7月（夏季峰值）+ 12月（冬季低谷）合并一张表，24 行全列
+- 用户指定月份 → 该月 24 小时；要求全年 → 12 个月完整数据
+- 占比 = 小时 PVOUT ÷ 当日 24h 总和 × 100%（典型日口径，分母用当天 24h 之和）
+
+| 小时 | 7月 出力 (Wh) | 7月 占比 | 12月 出力 (Wh) | 12月 占比 |
+|------|-------------|---------|-------------|----------|
+| 00-01 | {X} | {X}% | {X} | {X}% |
+| ...（24 行全列） | | | | |
+
+> 输出后附提示：以上是 7月（夏季峰值）和 12月（冬季低谷）逐时发电量及占比，典型日口径。如需其他月份请告知。
+
+6️⃣ **数据校验**
+
+```
+✓ 7月典型日 {X} Wh × 31天 = {Y} kWh = 月度数据 {Z} kWh ✓（12 个月全部吻合）
+✓ 数据复核：pvcalc vs GSA XLSX 原件 → 年/月/逐时峰值偏差 <0.5%/1.0%，✅ 通过
+```
+
+- 复核失败 → 标注 ⚠️ 并附 gsa_verify_xlsx.py 偏差表，XLSX 原件供用户复核
+- XLSX 不可用 → 标注"未复核，原件请到 GSA 官网下载"
+
+7️⃣ **图表附件**
+
+```
+📊 综合图：{输出目录}/charts/09_combined_summary.png
+📁 文件目录：{输出目录}/（json / xlsx / 报告.md / charts/）
+```
+
+- 图表用 matplotlib（gsa_plot_summary.py，见下），MEDIA: 或 open_preview 展示综合图
+```
+
+### 📄 报告 A+B：完整报告（10 节 + 📊 图表）
+
+```markdown
+# 📍 {位置名称} — 光伏辐照完整报告
+
+## 第一部分 · 辐照资源
+
+1️⃣ **站点信息**（同报告 A 1️⃣，数据源标注 lta + pvcalc）
+2️⃣ **辐照资源（年累计）**（同报告 A 2️⃣）
+3️⃣ **光伏参数**（同报告 A 3️⃣）
+4️⃣ **月度辐照**（同报告 A 4️⃣）
+5️⃣ **发电量估算（标准配置）**（同报告 A 5️⃣）
+
+## 第二部分 · 发电量（按实际 PV 配置）
+
+6️⃣ **PV 系统配置**（同报告 B 2️⃣）
+7️⃣ **年累计发电量**（同报告 B 3️⃣）
+8️⃣ **月度发电量**（同报告 B 4️⃣）
+9️⃣ **逐时发电量（典型日）**（同报告 B 5️⃣）
+🔟 **数据校验**（同报告 B 6️⃣）
+
+📊 **图表附件**（同报告 B 7️⃣）
+```
 
 ## 地理编码质量检查
 
@@ -267,9 +394,11 @@ curl -s "https://api.globalsolaratlas.info/data/lta?loc=纬度,经度"
 | 地理编码（最后兜底） | `browser_navigate`, `browser_type`, `browser_snapshot` |
 | 辐照度查询（模式 A） | `terminal` (curl lta API) |
 | 逐时数据（模式 B 首选） | `terminal` (`gsa_pvcalc.py` → pvcalc API，见上方 Step 3) |
+| XLSX 原件下载（复核用） | `gsa_download_xlsx.py`（Playwright 无头，缺失时给出 GSA URL 手动下载） |
+| 数据复核 | `gsa_verify_xlsx.py`（pvcalc vs XLSX，容差 0.5%/1.0%，见 Step 4.5） |
 | 逐时数据（模式 B 降级） | `browser` 下载 XLSX + `gsa_report_parser.py` |
 | 坐标系转换 | `terminal` (python3) |
-| 图表生成 | `gsa_plot_summary.py`（matplotlib，9 种图，见 5.8） |
+| 图表生成 | `gsa_plot_summary.py`（matplotlib，9 种图，见「输出格式」📄 报告 B 7️⃣） |
 
 ## 逐时数据获取（模式 B 专用）
 
@@ -361,7 +490,21 @@ python3 <skill目录>/scripts/gsa_pvcalc.py \
 2. **monthly-hourly 是典型日**：日值 × 当月天数 = 月累计（实测 12 个月全部精确吻合）。逐时表标注"典型日"口径；月累计直接用 `monthly.data`，不要自乘天数。
 3. **接口为非公开网关**（execute-api），可能变更；失败时降级走 XLSX 路径（见下）。
 
-**降级路径（pvcalc 失败时）：构造 GSA URL 下载 XLSX**
+**XLSX 原件下载（模式 B 常规步骤，复核用）：**
+
+每次模式 B / A+B 都下载 GSA 原始 XLSX 到输出目录，供复核与用户留档：
+
+```bash
+~/.hermes/hermes-agent/venv/bin/python3 <skill目录>/scripts/gsa_download_xlsx.py \
+  --loc 纬度,经度 --type medium --capacity 1000 --tilt 0 --azimuth 180 \
+  --out "{输出目录}/GSA_Report_{位置名称}.xlsx"
+```
+
+- 脚本用 Playwright 无头浏览器自动点击下载（约 15-20 秒），无需人工
+- playwright 缺失 → 脚本 exit 2 并打印 GSA URL，报告标注"原件请到 GSA 官网下载"
+- 手动兜底：打开构造的 URL → 点 `Reports` → `Data – XLSX format` → `Download`
+
+**降级路径（pvcalc 失败时）：构造 GSA URL 下载 XLSX 并用 parser 解析**
 
 GSA 支持 URL 参数预配置 PV 系统，可直接跳转：
 
@@ -420,121 +563,37 @@ python3 <skill目录>/scripts/gsa_report_parser.py <file.xlsx> --format json
 - 下载后文件不存在 → 回复用户：下载失败，请手动下载后重试
 - 文件存在但解析结果全为空 → 回复用户：报告数据为空，可能坐标无数据
 
-### Step 5：输出结果（模式 B 固化格式）
+### Step 4.5：数据复核（模式 B / A+B 必做）
 
-解析完成后，**必须按以下顺序输出**，不得省略：
-
-**⛔ 最高优先级规则：所有数字必须来自解析脚本输出，禁止任何形式的编造、推算、四舍五入。直接复制粘贴 parser 输出的表格内容。**
-
-**5.1 数据来源**
-
-```text
-📡 数据来源：GSA pvcalc API（2026-08-08，Solargis v2.2.68）   ← pvcalc 主路径
-📁 或已保存：~/Downloads/GSA_Report_<地点名>.xlsx            ← XLSX 降级路径
-```
-
-**5.2 站点概览**
-
-```
-📍 地点：<位置名称>
-🗺 坐标：lat°, lng°（海拔 m）
-🕐 时区：Asia/Shanghai
-📅 报告日期：YYYY-MM-DD
-```
-
-**5.3 PV 系统配置**
-
-```
-⚡ PV 配置：<类型> | <容量> kWp | 倾角 <°> | 方位角 <°>
-```
-
-**5.4 年累计数据（表格）**
-
-| 指标 | 值 |
-|------|-----|
-| GHI | xxx kWh/m² |
-| DNI | xxx kWh/m² |
-| DIF | xxx kWh/m² |
-| GTI_opta | xxx kWh/m² |
-| **年发电量** | **xxx,xxx kWh (x.xx GWh)** |
-| 年等效利用小时 | xxx h（= 年发电量 ÷ 装机容量 = 单位出力 PVOUT_specific） |
-| 最佳倾角 | xxx° |
-| 海拔 | xxx m |
-| 年均温度 | xx.x °C |
-
-**⚠️ 口径注意（2026-08 实测修正）：**
-- **等效利用小时** = 年发电量 ÷ 装机容量 = **单位出力 PVOUT_specific**（kWh/kWp 数值上即小时数），如 1026.71 kWh/kWp → ≈1027 h
-- **PSH（峰值日照小时）** = GTI ÷ 1000 W/m²（如 1286.4 kWh/m² → 1286.4 h），是**理论辐射资源**，不是发电利用小时
-- 禁止用 GTI/PSH 冒充等效利用小时；两者关系：单位出力 = GTI × 系统效率（≈0.80）
-
-**5.5 月度数据（表格，全年 12 个月）**
-
-| 月 | 发电量 (kWh) | 单位出力 (kWh/kWp) | DNI (kWh/m²) |
-|----|-------------|-------------------|--------------|
-| 1月 | xxx | xx.x | xx.x |
-| 2月 | xxx | xx.x | xx.x |
-| ... | ... | ... | ... |
-| **年** | **xxx,xxx** | **xxx.x** | **xxx.x** |
-
-**5.6 逐时发电量**
-
-- 默认展示 7月（夏季峰值）和 12月（冬季低谷），**合并为一张表格**
-- 用户指定月份 → 展示该月 24 小时
-- 用户明确要求"全年" → 展示 12 个月完整数据
-- 展示 PVOUT（Wh）+ **小时占比（%）**
-- 占比 = 小时 PVOUT / 当日（典型日）24h 总和 × 100%（monthly-hourly 为典型日口径，分母用当天 24h 之和，勿用月累计值）
-
-**默认展示格式（7月+12月合表）：**
-
-| 小时 | 7月 出力 (Wh) | 7月 占比 | 12月 出力 (Wh) | 12月 占比 |
-|------|-------------|---------|-------------|----------|
-| 0 - 1 | | | | |
-| ... | ... | ... | ... | ... |
-
-输出后提示：
-```
-以上是 7月（夏季峰值）和 12月（冬季低谷）逐时发电量及占比。如需其他月份请告知。
-```
-
-**5.7 验证提示**
-
-```
-✓ 校验：Jan PVOUT 月累计 xxx Wh × 31天 = xx,xxx kWh ≈ 月度数据 xx,xxx kWh ✓
-```
-
-**5.8 matplotlib 综合图（2×2 汇总，所有图表统一走此方案）**
-
-用户要"汇总图/综合图/科研绘图/报告图"时，用 matplotlib 生成 2×2 综合图：
+pvcalc 数据与 XLSX 原件交叉核对，**一致后才输出结论**：
 
 ```bash
-# 默认：只生成 2×2 综合图 → <xlsx目录>/charts/09_combined_summary.png
-~/.hermes/hermes-agent/venv/bin/python3 <skill目录>/scripts/gsa_plot_summary.py "<file.xlsx>"
-
-# 全部 9 种科研绘图（01-09）
-~/.hermes/hermes-agent/venv/bin/python3 <skill目录>/scripts/gsa_plot_summary.py "<file.xlsx>" --all
-
-# pvcalc 主路径（JSON 输入，无需 XLSX）：--loc 补 GHI/DIF/GTI_opta，--location 设地点名
-~/.hermes/hermes-agent/venv/bin/python3 <skill目录>/scripts/gsa_plot_summary.py <pvcalc.json> --loc 纬度,经度 --location "地点名" [--all]
+~/.hermes/hermes-agent/venv/bin/python3 <skill目录>/scripts/gsa_verify_xlsx.py \
+  --pvcalc {输出目录}/{位置名称}_pvcalc.json \
+  --xlsx {输出目录}/GSA_Report_{位置名称}.xlsx --capacity 1000
 ```
 
-**9 种图清单：**
+- 容差：年/月 <0.5%，逐时峰值 <1.0%（XLSX 小时值四舍五入所致）
+- 退出码 0 → 复核通过，正常输出报告
+- 退出码 1 → 存在超容差项，报告 6️⃣ 数据校验节标注 ⚠️ 并附偏差表，XLSX 原件供用户复核
+- XLSX 不可用（playwright 缺失/下载失败）→ 跳过复核，报告标注"未复核，原件请到 GSA 官网下载"
 
-| 文件 | 内容 | 用途 |
-|------|------|------|
-| 01_hourly_curves.png | 12条逐时曲线叠加 | 鸭舌帽图，日变化+季节对比 |
-| 02_hourly_heatmap.png | 24h×12月热力图 | 紧凑看双维变化 |
-| 03_monthly_bar_dni_line.png | 月度柱状+DNI双Y轴 | 可研报告经典图 |
-| 04_daily_horizontal_bar.png | 日均发电量横向条形 | 快速对比月份 |
-| 05_polar_rose.png | 极坐标玫瑰图 | 报告封面/视觉冲击 |
-| 06_irradiation_comparison.png | GHI/DNI/DIF/GTI对比 | 资源评估 |
-| 07_pvout_vs_dni_scatter.png | PVOUT-DNI散点+趋势线 | 相关性分析 |
-| 08_area_chart.png | 月度面积图 | 总量感 |
-| 09_combined_summary.png | 2×2 综合汇总 | 一页看全 |
+### Step 5：输出报告
 
-**注意：**
-- 必须用 `~/.hermes/hermes-agent/venv/bin/python3` 运行（matplotlib 装在该 venv）
-- 输出默认到 `<xlsx同目录>/charts/`，用 `--out` 指定目录
-- 生成后用 `open_preview` 或 MEDIA: 路径展示给用户
+按「## 输出格式（严格固定，三份报告模板）」输出，模式决定报告版本：
+
+| 模式 | 输出 |
+|------|------|
+| 模式 A | 📄 报告 A（5 节，emoji 1️⃣-5️⃣） |
+| 模式 B | 📄 报告 B（7 节，emoji 1️⃣-7️⃣） |
+| 模式 A+B | 📄 报告 A+B（10 节 + 📊 图表） |
+
+输出步骤（顺序固定）：
+
+1. **生成图表** → `{输出目录}/charts/`（gsa_plot_summary.py，JSON 输入；默认 09 综合图，用户要"科研图/全套图"则 `--all` 出 01-09）
+2. **保存报告全文** → `{输出目录}/{位置名称}_报告.md`（与聊天输出逐字一致）
+3. **展示**：MEDIA: 路径展示综合图，必要时 open_preview
+4. 全部数字来自脚本输出，禁止推算（见「输出格式」顶部 ⛔ 规则）
 
 ## 回归测试
 
