@@ -54,7 +54,7 @@ def main():
         except Exception:
             continue
         for w in exacts:
-            # 词边界整词匹配：前后不得是词字符（含汉字），避免"小叶"命中"小叶紫檀"类误报
+            # 词边界整词匹配：前后不得是词字符（含汉字），防人名简称撞常见字误报
             pat = re.compile(r"(?<!\w)" + re.escape(w) + r"(?!\w)")
             for i, ln in enumerate(content.splitlines(), 1):
                 if pat.search(ln): hits.append((f"exact:{w}", f"{f}:{i}"))
