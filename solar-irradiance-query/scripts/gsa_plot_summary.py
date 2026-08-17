@@ -3,15 +3,22 @@
 GSA 报告综合绘图脚本 — matplotlib 版
 用法:
     python3 gsa_plot_summary.py <GSA_Report.xlsx> [--out DIR] [--all]
+    python3 gsa_plot_summary.py <pvcalc.json> [--loc 纬度,经度] [--location 地点名] [--all]
+
+支持两种输入：
+- GSA XLSX 报告（gsa_report_parser.py 同源，浏览器下载或 pvcalc 失败降级路径）
+- pvcalc 接口 JSON（gsa_pvcalc.py --format json 输出，主路径；--loc 用于补 GHI/DIF/GTI_opta）
 
 默认生成 1 张 2×2 综合汇总图（09_combined_summary.png）
 --all 生成全部 9 种科研绘图（01-09）
 
 依赖: pandas, numpy, matplotlib (建议用 ~/.hermes/hermes-agent/venv/bin/python3 运行)
 """
+import json
 import os
 import sys
 import argparse
+import urllib.request
 
 import numpy as np
 import pandas as pd
@@ -19,6 +26,7 @@ import matplotlib.pyplot as plt
 
 MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+LTA_URL = "https://api.globalsolaratlas.info/data/lta"
 
 
 def load_data(xlsx_path):
@@ -55,6 +63,48 @@ def load_data(xlsx_path):
         'pvout_daily': pvout_daily,
         'dni_hourly': dni_hourly,
         'irr': {'GHI': ghi, 'DNI': dni, 'DIF': dif, 'GTI_opta': gti_opta},
+    }
+
+
+def load_data_json(json_path, location='GSA pvcalc', loc=None):
+    """从 gsa_pvcalc.py 输出的 JSON 构造与 XLSX 等价的数据结构。
+
+    loc: "纬度,经度"，用于补 lta 的 GHI/DIF/GTI_opta（pvcalc 只有 DNI/GTI）。
+    """
+    with open(json_path, encoding='utf-8') as f:
+        raw = json.load(f)
+    monthly = raw['monthly']['data']
+    hourly = raw['monthly-hourly']['data']
+    annual = raw['annual']['data']
+
+    pvout_hourly = np.array(hourly['PVOUT_total']).T   # 12×24 → 24×12
+    dni_hourly = np.array(hourly['DNI']).T
+    pvout_daily = [float(np.sum(hourly['PVOUT_total'][i])) for i in range(12)]  # 典型日 Wh
+
+    irr = {'DNI': float(annual['DNI']), 'GTI_opta': float(annual['GTI'])}
+    if loc:
+        try:
+            lat, lng = (float(x) for x in str(loc).split(','))
+            with urllib.request.urlopen(f"{LTA_URL}?loc={lat},{lng}", timeout=30) as r:
+                lta_annual = json.load(r)['annual']['data']
+            irr.update({'GHI': lta_annual['GHI'], 'DIF': lta_annual['DIF'],
+                        'GTI_opta': lta_annual['GTI_opta']})
+        except Exception:
+            irr.setdefault('GHI', irr['GTI_opta'])
+            irr.setdefault('DIF', irr['DNI'])
+    else:
+        irr['GHI'] = irr['GTI_opta']
+        irr['DIF'] = irr['DNI']
+
+    return {
+        'location': location,
+        'pvout_specific': list(monthly['PVOUT_specific']),
+        'pvout_total': list(monthly['PVOUT_total']),
+        'dni_monthly': list(monthly['DNI']),
+        'pvout_hourly': pvout_hourly,
+        'pvout_daily': pvout_daily,
+        'dni_hourly': dni_hourly,
+        'irr': irr,
     }
 
 
@@ -298,19 +348,24 @@ ALL_PLOTS = [
 
 def main():
     parser = argparse.ArgumentParser(description='GSA 报告 matplotlib 综合绘图')
-    parser.add_argument('xlsx', help='GSA_Report_*.xlsx 路径')
-    parser.add_argument('--out', default=None, help='输出目录（默认: xlsx 同级 charts/ 目录）')
+    parser.add_argument('input', help='GSA_Report_*.xlsx 或 gsa_pvcalc.py --format json 输出的 .json')
+    parser.add_argument('--out', default=None, help='输出目录（默认: 输入文件同级 charts/ 目录）')
     parser.add_argument('--all', action='store_true', help='生成全部 9 种图（默认只生成 2×2 综合图）')
+    parser.add_argument('--loc', default=None, help='经纬度 纬度,经度（JSON 输入时补 GHI/DIF/GTI_opta）')
+    parser.add_argument('--location', default=None, help='地点名（JSON 输入时标题用）')
     args = parser.parse_args()
 
-    if not os.path.exists(args.xlsx):
-        sys.exit(f'ERROR: 文件不存在: {args.xlsx}')
+    if not os.path.exists(args.input):
+        sys.exit(f'ERROR: 文件不存在: {args.input}')
 
-    out_dir = args.out or os.path.join(os.path.dirname(os.path.abspath(args.xlsx)), 'charts')
+    out_dir = args.out or os.path.join(os.path.dirname(os.path.abspath(args.input)), 'charts')
     os.makedirs(out_dir, exist_ok=True)
 
     setup_style()
-    d = load_data(args.xlsx)
+    if args.input.lower().endswith('.json'):
+        d = load_data_json(args.input, args.location or 'GSA pvcalc', args.loc)
+    else:
+        d = load_data(args.input)
     print(f'地点: {d["location"]}')
 
     targets = ALL_PLOTS if args.all else ALL_PLOTS[-1:]  # 默认只出综合图

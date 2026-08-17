@@ -518,6 +518,9 @@ python3 <skill目录>/scripts/gsa_report_parser.py <file.xlsx> --format json
 
 # 全部 9 种科研绘图（01-09）
 ~/.hermes/hermes-agent/venv/bin/python3 <skill目录>/scripts/gsa_plot_summary.py "<file.xlsx>" --all
+
+# pvcalc 主路径（JSON 输入，无需 XLSX）：--loc 补 GHI/DIF/GTI_opta，--location 设地点名
+~/.hermes/hermes-agent/venv/bin/python3 <skill目录>/scripts/gsa_plot_summary.py <pvcalc.json> --loc 纬度,经度 --location "地点名" [--all]
 ```
 
 **9 种图清单：**
