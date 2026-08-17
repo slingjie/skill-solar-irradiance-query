@@ -14,7 +14,7 @@ triggers:
   - "坐标 {lat} {lng} 光伏"
   - "{地点} 年发电量"
   - "光伏 年等效利用小时"
-  # === 逐时发电量（需要下载 XLSX 报告 + 解析 + 图表） ===
+  # === 逐时发电量（pvcalc 接口/降级 XLSX + 解析 + 图表） ===
   - 逐时、小时分布、hourly profile、每小时
   - 出力曲线、发电曲线、功率曲线
   - 小时占比、出力集中度
@@ -168,6 +168,8 @@ curl -s "https://api.globalsolaratlas.info/data/lta?loc=纬度,经度"
 - 返回空 JSON 或无 `annual` 字段 → 该坐标无数据（海洋/极地/异常坐标）
 - HTTP 错误/超时 → 网络异常
 
+**⚠️ 字段名注意（实测 2026-08）：** lta 接口 `annual.data` 的比光伏出力字段是 **`PVOUT_csi`**（不是 `PVOUT`，按 `PVOUT` 取值会 KeyError）。完整字段：`PVOUT_csi` / `DNI` / `GHI` / `DIF` / `GTI_opta` / `OPTA` / `TEMP` / `ELE`。
+
 ### Step 5：异常处理
 
 | 场景 | 处理 |
@@ -192,7 +194,7 @@ curl -s "https://api.globalsolaratlas.info/data/lta?loc=纬度,经度"
 - 最佳倾角: {X}°
 
 ## 光伏数据
-- **PVOUT（比光伏出力）**: {X} kWh/kWp
+- **PVOUT（比光伏出力）**: {X} kWh/kWp（lta 接口字段名 `PVOUT_csi`）
 - 气温: {X} °C
 - 海拔: {X} m
 
@@ -263,9 +265,11 @@ curl -s "https://api.globalsolaratlas.info/data/lta?loc=纬度,经度"
 | 地理编码（首选） | `terminal` (curl 高德 REST API，key 取自 `$AMAP_WEBSERVICE_KEY`) |
 | 地理编码（兜底） | `web_search` |
 | 地理编码（最后兜底） | `browser_navigate`, `browser_type`, `browser_snapshot` |
-| 辐照度查询 | `terminal` (curl) |
+| 辐照度查询（模式 A） | `terminal` (curl lta API) |
+| 逐时数据（模式 B 首选） | `terminal` (`gsa_pvcalc.py` → pvcalc API，见上方 Step 3) |
+| 逐时数据（模式 B 降级） | `browser` 下载 XLSX + `gsa_report_parser.py` |
 | 坐标系转换 | `terminal` (python3) |
-| 逐时数据解析 | `gsa_report_parser.py` (见下方) |
+| 图表生成 | `gsa_plot_summary.py` / HTML canvas |
 
 ## 逐时数据获取（模式 B 专用）
 
@@ -317,7 +321,47 @@ choices=["正南（180°）", "东南（135°）", "西南（225°）", "正东�
 curl -s "https://api.globalsolaratlas.info/data/lta?loc=纬度,经度" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['annual']['data']['OPTA'])"
 ```
 
-### Step 3：构造 GSA URL 并下载报告
+### Step 3：获取逐时数据（首选 pvcalc 接口，XLSX 下载降级）
+
+**主路径（首选）：调用 GSA pvcalc 接口，一次返回年/月/逐时全部数据，无需浏览器。**
+
+```bash
+python3 <skill目录>/scripts/gsa_pvcalc.py \
+  --loc 纬度,经度 --type medium --capacity 1000 \
+  --tilt 15 --azimuth 180 --gmt-offset 28800 --format json
+```
+
+| 参数 | 说明 | 可选值 |
+|------|------|--------|
+| `--loc` | 经纬度 | `纬度,经度`（如 `30.274100,120.058900`） |
+| `--type` | 系统类型 | `small` / `medium` / `large` / `floating` |
+| `--capacity` | 装机容量 kWp | **传项目实际容量**（脚本按此换算 PVOUT_total，零换算） |
+| `--tilt` | 倾角 ° | 度数或 OPTA 值 |
+| `--azimuth` | 方位角 ° | `180`=正南（默认） |
+| `--gmt-offset` | 时区偏移秒 | 中国 `28800`，越南 `25200` |
+| `--format` | 输出 | `json`（默认）/ `table` |
+
+**type → pvcalc 原生值映射**（来源：GSA 前端 bundle `chunk-CD6ZCY4X.js` 枚举 `n_`，2026-08 实测验证）：
+
+| GSA URL pv= 参数 | pvcalc `type` | 含义 |
+|---|---|---|
+| `small` | `rooftopSmall` | 小型住宅屋顶 |
+| `medium` | `rooftopLargeFlat` | 工商业平屋顶 |
+| `large` | `groundFixed` | 地面固定式 |
+| `floating` | `hydroMountedLargeScale` | 水面/水库漂浮式 |
+| （另有） | `rooftopLargeTilted` / `buildingIntegrated` / `trackerOneAxisHorizontalNS` / `noPvSystem` | 斜屋顶 / BIPV / 单轴跟踪 / 无系统 |
+
+**返回结构（对应 XLSX 分表）：**
+- `annual.data` — 年累计（PVOUT_specific: kWh/kWp、PVOUT_total: kWh、GTI、DNI）
+- `monthly.data` — 月度（各 12 元素数组）
+- `monthly-hourly.data` — **典型日**逐时（各 12×24：PVOUT_specific: Wh/kWp、PVOUT_total: Wh、DNI: Wh/m²、GTI: Wh/m²）
+
+**⚠️ 三个已知坑（2026-08 实测）：**
+1. **接口不校验坐标**：海洋坐标也返回数据；非法坐标/极地返回 HTTP 500（脚本已捕获并提示"坐标无效"）。地理编码后仍需人工确认坐标合理。
+2. **monthly-hourly 是典型日**：日值 × 当月天数 = 月累计（实测 12 个月全部精确吻合）。逐时表标注"典型日"口径；月累计直接用 `monthly.data`，不要自乘天数。
+3. **接口为非公开网关**（execute-api），可能变更；失败时降级走 XLSX 路径（见下）。
+
+**降级路径（pvcalc 失败时）：构造 GSA URL 下载 XLSX**
 
 GSA 支持 URL 参数预配置 PV 系统，可直接跳转：
 
@@ -332,7 +376,7 @@ https://globalsolaratlas.info/map?s=纬度,经度,10&pv=类型,方位角,倾角,
 | 类型 | 系统类型 | `small` / `medium` / `large` / `floating` |
 | 方位角 | 朝向 | `180`=正南（默认） |
 | 倾角 | 角度 | 度数或 OPTA 值 |
-| 容量 | 装机容量 | kWp（如 `100` / `500`） |
+| 容量 | 装机容量 | **导出固定用 `1000`**（1kWp 文件小时值四舍五入严重，1000kWp 精度高；输出时按项目容量换算） |
 
 **下载步骤**：
 1. `browser_navigate` 到构造的 URL
@@ -342,10 +386,23 @@ https://globalsolaratlas.info/map?s=纬度,经度,10&pv=类型,方位角,倾角,
 5. 点击 `Download`
 6. 文件保存到 `~/Downloads/GSA_Report_<地点名>.xlsx`
 
-### Step 4：解析 XLSX 报告
+### Step 4：解析数据
+
+**pvcalc 主路径（JSON 已结构化，无需额外解析）：**
 
 ```bash
-python3 ~/.hermes/scripts/gsa_report_parser.py <file.xlsx> --format json
+# 直接解析 gsa_pvcalc.py 输出的 JSON：
+# - annual.data          → 年累计
+# - monthly.data         → 月度（12 元素数组）
+# - monthly-hourly.data  → 典型日逐时（12×24）
+# 也可直接看 --format table 的可读输出
+python3 <skill目录>/scripts/gsa_pvcalc.py --loc ... --tilt ... --format table
+```
+
+**XLSX 降级路径（pvcalc 失败时）：**
+
+```bash
+python3 <skill目录>/scripts/gsa_report_parser.py <file.xlsx> --format json
 ```
 
 返回结构包含：
@@ -357,6 +414,7 @@ python3 ~/.hermes/scripts/gsa_report_parser.py <file.xlsx> --format json
 - `Hourly_profiles` — **逐时发电量**（PVOUT_total: Wh）+ 逐时 DNI（Wh/m²）
 
 **异常处理：**
+- pvcalc 返回 `ERROR:` 开头 → 按错误信息处理（坐标无效/网络/超时），确认后可降级 XLSX
 - 脚本返回 `ERROR:` 开头 → 回复用户：XLSX 解析失败，请检查文件是否完整
 - 脚本返回 `error` 字段在某个 sheet → 回复用户：部分数据解析异常，可用 `--format table` 查看详情
 - 下载后文件不存在 → 回复用户：下载失败，请手动下载后重试
@@ -368,10 +426,11 @@ python3 ~/.hermes/scripts/gsa_report_parser.py <file.xlsx> --format json
 
 **⛔ 最高优先级规则：所有数字必须来自解析脚本输出，禁止任何形式的编造、推算、四舍五入。直接复制粘贴 parser 输出的表格内容。**
 
-**5.1 文件信息**
+**5.1 数据来源**
 
-```
-📁 已保存：~/Downloads/GSA_Report_<地点名>.xlsx
+```text
+📡 数据来源：GSA pvcalc API（2026-08-08，Solargis v2.2.68）   ← pvcalc 主路径
+📁 或已保存：~/Downloads/GSA_Report_<地点名>.xlsx            ← XLSX 降级路径
 ```
 
 **5.2 站点概览**
@@ -471,10 +530,10 @@ python3 ~/.hermes/scripts/gsa_report_parser.py <file.xlsx> --format json
 
 ```bash
 # 默认：只生成 2×2 综合图 → <xlsx目录>/charts/09_combined_summary.png
-~/.hermes/hermes-agent/venv/bin/python3 ~/.hermes/skills/pv-storage-grid-policy/solar-irradiance-query/scripts/gsa_plot_summary.py "<file.xlsx>"
+~/.hermes/hermes-agent/venv/bin/python3 <skill目录>/scripts/gsa_plot_summary.py "<file.xlsx>"
 
 # 全部 9 种科研绘图（01-09）
-~/.hermes/hermes-agent/venv/bin/python3 ~/.hermes/skills/pv-storage-grid-policy/solar-irradiance-query/scripts/gsa_plot_summary.py "<file.xlsx>" --all
+~/.hermes/hermes-agent/venv/bin/python3 <skill目录>/scripts/gsa_plot_summary.py "<file.xlsx>" --all
 ```
 
 **9 种图清单：**
