@@ -160,6 +160,7 @@ def format_table(data, capacity):
     lines.append("")
     lines.append(f"- PVOUT（比光伏出力）: {annual['PVOUT_specific']:.2f} kWh/kWp")
     lines.append(f"- PVOUT（年发电量, {capacity:g} kWp）: {annual['PVOUT_total']:,.1f} kWh")
+    lines.append(f"- 等效利用小时: {annual['PVOUT_specific']:.0f} h（= 年发电量 ÷ 装机容量 = 单位出力）")
     lines.append(f"- GTI（组件平面辐射）: {annual['GTI']:.2f} kWh/m²")
     lines.append(f"- DNI（直接法向辐射）: {annual['DNI']:.2f} kWh/m²")
     lines.append("")

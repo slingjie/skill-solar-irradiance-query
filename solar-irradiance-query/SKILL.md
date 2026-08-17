@@ -457,10 +457,15 @@ python3 <skill目录>/scripts/gsa_report_parser.py <file.xlsx> --format json
 | DIF | xxx kWh/m² |
 | GTI_opta | xxx kWh/m² |
 | **年发电量** | **xxx,xxx kWh (x.xx GWh)** |
-| 年等效利用小时 | xxx h |
+| 年等效利用小时 | xxx h（= 年发电量 ÷ 装机容量 = 单位出力 PVOUT_specific） |
 | 最佳倾角 | xxx° |
 | 海拔 | xxx m |
 | 年均温度 | xx.x °C |
+
+**⚠️ 口径注意（2026-08 实测修正）：**
+- **等效利用小时** = 年发电量 ÷ 装机容量 = **单位出力 PVOUT_specific**（kWh/kWp 数值上即小时数），如 1026.71 kWh/kWp → ≈1027 h
+- **PSH（峰值日照小时）** = GTI ÷ 1000 W/m²（如 1286.4 kWh/m² → 1286.4 h），是**理论辐射资源**，不是发电利用小时
+- 禁止用 GTI/PSH 冒充等效利用小时；两者关系：单位出力 = GTI × 系统效率（≈0.80）
 
 **5.5 月度数据（表格，全年 12 个月）**
 
